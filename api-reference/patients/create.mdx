@@ -1,0 +1,139 @@
+---
+title: "Create Patient — POST /patients"
+sidebarTitle: "Create"
+description: "POST /patients — register a new patient in your clinic. Returns the created patient with a unique ID."
+---
+
+The **Create Patient** endpoint registers a new patient record in your clinic. On success, the API returns the full patient object with a generated UUID and timestamps. Only the patient's `name` is required — all other fields are optional and can be added later via the [Update Patient](/api-reference/patients/update) endpoint.
+
+## Endpoint
+
+```
+POST https://api.bydoctor.com.br/v1/patients
+```
+
+## Authentication
+
+```
+Authorization: Bearer YOUR_API_KEY
+```
+
+## Request Body
+
+Send a JSON body with `Content-Type: application/json`.
+
+<ParamField body="name" type="string" required>
+  Patient's full name. Must be between 2 and 255 characters.
+</ParamField>
+
+<ParamField body="phone" type="string">
+  Contact phone number in **E.164 format**, e.g. `+5511999999999`. The leading `+` and country code are required.
+</ParamField>
+
+<ParamField body="email" type="string">
+  Patient's email address. Must be a valid RFC 5322 email format.
+</ParamField>
+
+<ParamField body="cpf" type="string">
+  Brazilian individual taxpayer identifier. Must match the format `123.456.789-00` including punctuation. The CPF is validated for correct formatting and check digits, and must be unique within your clinic.
+</ParamField>
+
+<ParamField body="date_of_birth" type="string">
+  Patient's date of birth in `YYYY-MM-DD` format, e.g. `1990-03-15`. The date must be in the past.
+</ParamField>
+
+<ParamField body="health_plan" type="string">
+  Name of the patient's health insurance plan, e.g. `"Unimed"` or `"SulAmérica"`.
+</ParamField>
+
+<Tip>
+  Before creating a new patient, consider searching for an existing record using [`GET /patients?search=`](/api-reference/patients/list) with the patient's CPF or phone number as the query. Using CPF or phone as a deduplication key helps you avoid creating duplicate profiles for the same individual — particularly important when patients book through multiple channels.
+</Tip>
+
+## Response Fields (201 Created)
+
+<ResponseField name="id" type="string" required>
+  Newly assigned UUID for the patient record.
+</ResponseField>
+
+<ResponseField name="clinic_id" type="string" required>
+  Identifier of the clinic the patient was registered under.
+</ResponseField>
+
+<ResponseField name="name" type="string" required>
+  Patient's full name as submitted.
+</ResponseField>
+
+<ResponseField name="cpf" type="string">
+  CPF as submitted, or `null` if not provided.
+</ResponseField>
+
+<ResponseField name="phone" type="string">
+  Phone number as submitted, or `null` if not provided.
+</ResponseField>
+
+<ResponseField name="email" type="string">
+  Email address as submitted, or `null` if not provided.
+</ResponseField>
+
+<ResponseField name="date_of_birth" type="string">
+  Date of birth as submitted, or `null` if not provided.
+</ResponseField>
+
+<ResponseField name="health_plan" type="string">
+  Health plan name as submitted, or `null` if not provided.
+</ResponseField>
+
+<ResponseField name="whatsapp_opt_out" type="boolean" required>
+  Defaults to `false` for newly created patients.
+</ResponseField>
+
+<ResponseField name="created_at" type="string" required>
+  ISO 8601 UTC timestamp of record creation.
+</ResponseField>
+
+<ResponseField name="updated_at" type="string" required>
+  ISO 8601 UTC timestamp of last modification. Equal to `created_at` on a freshly created record.
+</ResponseField>
+
+## Error Responses
+
+| Status | Code | Description |
+|--------|------|-------------|
+| `400 Bad Request` | `invalid_cpf_format` | The `cpf` field does not match the expected format or fails check-digit validation. |
+| `409 Conflict` | `cpf_already_exists` | Another patient in your clinic already has the same CPF. |
+
+## Example Request
+
+```bash
+curl --request POST \
+  --url "https://api.bydoctor.com.br/v1/patients" \
+  --header "Authorization: Bearer YOUR_API_KEY" \
+  --header "Content-Type: application/json" \
+  --data '{
+    "name": "Carlos Eduardo Lima",
+    "phone": "+5511988887777",
+    "email": "carlos.lima@email.com",
+    "cpf": "123.456.789-09",
+    "date_of_birth": "1988-07-22",
+    "health_plan": "Unimed"
+  }'
+```
+
+## Example Response
+
+```json
+{
+  "id": "c3d4e5f6-a7b8-9012-cdef-123456789012",
+  "clinic_id": "clinic_01HXZ9QWERTY",
+  "name": "Carlos Eduardo Lima",
+  "cpf": "123.456.789-09",
+  "phone": "+5511988887777",
+  "email": "carlos.lima@email.com",
+  "date_of_birth": "1988-07-22",
+  "health_plan": "Unimed",
+  "whatsapp_opt_out": false,
+  "created_at": "2025-01-20T13:45:00Z",
+  "updated_at": "2025-01-20T13:45:00Z"
+}
+```

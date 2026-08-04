@@ -1,0 +1,262 @@
+---
+title: "ByDoctor API Data Model and Resource Relationships"
+sidebarTitle: "Data Model"
+description: "Explore the core entities of the ByDoctor API — Clinics, Professionals, Patients, Appointments, Payments, and Webhooks — and how they relate."
+---
+
+The ByDoctor API is organized around six core resources that reflect how a modern Brazilian clinic operates. Every resource belongs to a **Clinic**, and your API key determines which clinic's data you can access. Understanding the shape of these resources and how they relate to one another will help you build integrations that are both correct and efficient.
+
+## Overview
+
+The resource hierarchy flows from the top-level Clinic down to individual transactions:
+
+- A **Clinic** is the root organization. All other resources belong to exactly one clinic.
+- **Professionals** and **Patients** are registered under a clinic and can exist independently of one another.
+- **Appointments** are the central connective tissue — each appointment links a Patient to a Professional at a specific time.
+- **Payments** are attached to an Appointment and record the financial transaction for that visit.
+- **Webhooks** are registered at the clinic level and receive real-time event notifications for changes to any of the above resources.
+
+```
+Clinic
+├── Professionals
+├── Patients
+├── Appointments (links Patient ↔ Professional)
+│   └── Payments
+└── Webhooks
+```
+
+<Note>
+  All API requests are automatically scoped to your clinic. You do not need to pass a `clinic_id` query parameter — it is derived from your API key.
+</Note>
+
+---
+
+## Clinic
+
+A Clinic is the top-level organization in ByDoctor. Every resource you read or write belongs to the clinic associated with your API key.
+
+```json
+{
+  "id": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+  "name": "Clínica São Lucas",
+  "slug": "clinica-sao-lucas",
+  "timezone": "America/Sao_Paulo",
+  "created_at": "2025-01-15T14:30:00Z"
+}
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `id` | string (UUID) | Unique identifier for the clinic. |
+| `name` | string | Display name of the clinic. |
+| `slug` | string | URL-safe identifier used in the clinic's public profile URL (e.g. `bydoctor.com.br/clinica-sao-lucas`). |
+| `timezone` | string | IANA timezone name. All appointment times are stored in UTC and should be displayed in this timezone. |
+| `created_at` | string (ISO 8601) | UTC timestamp when the clinic was created. |
+
+---
+
+## Professional
+
+A Professional is a healthcare provider registered under a clinic. Professionals can hold different roles that determine their permissions within the system.
+
+```json
+{
+  "id": "a1b2c3d4-1234-5678-abcd-ef0123456789",
+  "clinic_id": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+  "name": "Dr. Carlos Mendes",
+  "specialty": "Cardiologia",
+  "crm": "CRM/SP 123456",
+  "role": "professional",
+  "created_at": "2025-02-01T09:00:00Z"
+}
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `id` | string (UUID) | Unique identifier for the professional. |
+| `clinic_id` | string (UUID) | The clinic this professional belongs to. |
+| `name` | string | Full name of the healthcare provider. |
+| `specialty` | string | Medical or healthcare specialty (e.g. `"Cardiologia"`). |
+| `crm` | string | Brazilian medical license number issued by the Regional Medical Council (Conselho Regional de Medicina). |
+| `role` | string (enum) | Permission level: `"admin"` has full access, `"professional"` manages their own schedule, `"collaborator"` has limited read access. |
+| `created_at` | string (ISO 8601) | UTC timestamp when the professional record was created. |
+
+---
+
+## Patient
+
+A Patient represents an individual receiving care at the clinic. Most personal fields are optional to accommodate walk-in and anonymous registrations.
+
+```json
+{
+  "id": "b2c3d4e5-2345-6789-bcde-f01234567890",
+  "clinic_id": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+  "name": "Ana Paula Oliveira",
+  "cpf": "123.456.789-09",
+  "phone": "+5511999999999",
+  "email": "ana.oliveira@example.com",
+  "date_of_birth": "1990-07-22",
+  "health_plan": "Unimed",
+  "created_at": "2025-03-10T11:20:00Z",
+  "updated_at": "2025-06-01T08:45:00Z"
+}
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `id` | string (UUID) | Unique identifier for the patient. |
+| `clinic_id` | string (UUID) | The clinic this patient is registered with. |
+| `name` | string | Full legal name of the patient. |
+| `cpf` | string (optional) | Brazilian individual taxpayer identification number (Cadastro de Pessoas Físicas). |
+| `phone` | string | Contact phone number in E.164 format (e.g. `"+5511999999999"`). |
+| `email` | string (optional) | Email address for appointment reminders and communication. |
+| `date_of_birth` | date (optional) | Patient's date of birth in `YYYY-MM-DD` format. |
+| `health_plan` | string (optional) | Name of the patient's health insurance plan. |
+| `created_at` | string (ISO 8601) | UTC timestamp when the patient record was created. |
+| `updated_at` | string (ISO 8601) | UTC timestamp of the most recent update to the patient record. |
+
+<Tip>
+  When the `cpf` field is present, ByDoctor uses it to deduplicate patients across registrations. You should provide it whenever available to avoid duplicate records.
+</Tip>
+
+---
+
+## Appointment
+
+An Appointment links a Patient to a Professional for a specific time slot. It is the central operational resource in ByDoctor and drives scheduling, billing, and clinical workflows.
+
+```json
+{
+  "id": "c3d4e5f6-3456-789a-cdef-012345678901",
+  "clinic_id": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+  "patient_id": "b2c3d4e5-2345-6789-bcde-f01234567890",
+  "professional_id": "a1b2c3d4-1234-5678-abcd-ef0123456789",
+  "starts_at": "2025-07-10T14:00:00Z",
+  "ends_at": "2025-07-10T14:30:00Z",
+  "type": "presencial",
+  "status": "confirmed",
+  "notes": "Patient reports chest discomfort since last week.",
+  "payment_status": "pending",
+  "created_at": "2025-07-01T10:00:00Z",
+  "updated_at": "2025-07-05T16:30:00Z"
+}
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `id` | string (UUID) | Unique identifier for the appointment. |
+| `clinic_id` | string (UUID) | The clinic where the appointment takes place. |
+| `patient_id` | string (UUID) | The patient attending the appointment. |
+| `professional_id` | string (UUID) | The professional conducting the appointment. |
+| `starts_at` | string (ISO 8601) | UTC timestamp when the appointment begins. |
+| `ends_at` | string (ISO 8601) | UTC timestamp when the appointment ends. |
+| `type` | string (enum) | Modality: `"presencial"` for in-person, `"teleconsulta"` for video/remote. |
+| `status` | string (enum) | Lifecycle state: `"scheduled"` → `"confirmed"` → `"completed"` or `"cancelled"` / `"no_show"`. |
+| `notes` | string (optional) | Free-text clinical or administrative notes attached to this appointment. |
+| `payment_status` | string (enum) | Payment state for this appointment: `"pending"`, `"paid"`, or `"overdue"`. |
+| `created_at` | string (ISO 8601) | UTC timestamp when the appointment was created. |
+| `updated_at` | string (ISO 8601) | UTC timestamp of the most recent update to the appointment. |
+
+<Warning>
+  The API rejects overlapping appointments for the same professional. If you receive a `409 Conflict` when creating an appointment, check the `conflicting_appointment_id` field in the error response for details.
+</Warning>
+
+---
+
+## Payment
+
+A Payment records the financial transaction for an Appointment. Amounts are always stored as integers in **centavos** (BRL cents) to avoid floating-point precision errors.
+
+```json
+{
+  "id": "d4e5f6a7-4567-89ab-def0-123456789012",
+  "clinic_id": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+  "appointment_id": "c3d4e5f6-3456-789a-cdef-012345678901",
+  "amount": 25000,
+  "method": "pix",
+  "bank_account_id": "e5f6a7b8-5678-9abc-ef01-234567890123",
+  "status": "paid",
+  "created_at": "2025-07-10T15:05:00Z"
+}
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `id` | string (UUID) | Unique identifier for the payment. |
+| `clinic_id` | string (UUID) | The clinic that received the payment. |
+| `appointment_id` | string (UUID) | The appointment this payment is associated with. |
+| `amount` | integer | Payment amount in centavos (BRL cents). R$ 250,00 is represented as `25000`. |
+| `method` | string (enum) | Payment method: `"cash"`, `"credit_card"`, `"debit_card"`, `"pix"`, or `"health_plan"`. |
+| `bank_account_id` | string (optional) | ID of the clinic's bank account to which the payment is credited. |
+| `status` | string (enum) | Payment state: `"pending"`, `"paid"`, or `"cancelled"`. |
+| `created_at` | string (ISO 8601) | UTC timestamp when the payment record was created. |
+
+---
+
+## Webhook
+
+A Webhook registers a URL to receive real-time event notifications from ByDoctor. You can subscribe to specific event types and use the shared secret to verify that payloads originate from ByDoctor.
+
+```json
+{
+  "id": "e5f6a7b8-5678-9abc-ef01-234567890123",
+  "clinic_id": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+  "url": "https://your-app.example.com/webhooks/bydoctor",
+  "events": [
+    "appointment.created",
+    "appointment.status_changed",
+    "payment.paid"
+  ],
+  "secret": "whsec_abc123...",
+  "active": true,
+  "created_at": "2025-04-20T08:00:00Z"
+}
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `id` | string (UUID) | Unique identifier for the webhook registration. |
+| `clinic_id` | string (UUID) | The clinic this webhook belongs to. |
+| `url` | string | The HTTPS endpoint that ByDoctor will POST event payloads to. |
+| `events` | array of strings | List of event names to subscribe to (e.g. `"appointment.created"`). |
+| `secret` | string | Shared secret used to compute an HMAC-SHA256 signature on each payload. Use this to verify authenticity. |
+| `active` | boolean | When `false`, the webhook is paused and will not receive deliveries. |
+| `created_at` | string (ISO 8601) | UTC timestamp when the webhook was registered. |
+
+<Note>
+  Always verify incoming webhook payloads using the `secret`. ByDoctor sends an `X-ByDoctor-Signature` header with each request containing the HMAC-SHA256 of the raw request body.
+</Note>
+
+---
+
+## Conventions
+
+### Timestamps
+
+All timestamp fields in the API use **ISO 8601 format in UTC**, denoted by the `Z` suffix. For example:
+
+```
+2025-01-15T14:30:00Z
+```
+
+When displaying times to users, convert UTC to the clinic's `timezone` field (e.g. `America/Sao_Paulo`). Never assume a local timezone on the server side.
+
+### Currency
+
+Monetary amounts are always represented as **integers in centavos** (Brazilian BRL cents). This avoids floating-point rounding issues common with decimal representations.
+
+| Display value | API value |
+|---|---|
+| R$ 1,00 | `100` |
+| R$ 150,00 | `15000` |
+| R$ 1.999,90 | `199990` |
+
+### IDs
+
+All resource IDs are **UUID v4** strings in the canonical hyphenated format:
+
+```
+f47ac10b-58cc-4372-a567-0e02b2c3d479
+```
+
+Store and compare IDs as case-insensitive strings. Do not attempt to parse structure or ordering from UUIDs.

@@ -1,0 +1,266 @@
+---
+title: "Pull Financial Data and Reports via the ByDoctor API"
+sidebarTitle: "Financial Reporting"
+description: "Use the Payments API and webhooks to build financial dashboards, automate accounting exports, and reconcile health plan payments."
+---
+
+The ByDoctor Payments API gives you programmatic access to every financial transaction recorded by the platform — from cash payments at the reception desk to health plan invoices awaiting reimbursement. You can use this data to build custom dashboards, feed an accounting system, or produce TISS reconciliation reports for health plans.
+
+## Key concepts
+
+Before querying payments, there are two important conventions to understand:
+
+- **Amounts are in centavos (integer).** R$ 150,00 is represented as `15000`. There are no decimal points in the `amount` field. All values are in **BRL**.
+- **Payments are linked to appointments.** Every payment object carries an `appointment_id` that you can use to join financial data with clinical data for richer reports.
+
+## Listing payments
+
+Use `GET /payments` with query parameters to filter the dataset to exactly the records you need.
+
+| Parameter | Type | Description |
+|---|---|---|
+| `created_after` | ISO 8601 datetime | Include payments created at or after this time |
+| `created_before` | ISO 8601 datetime | Include payments created at or before this time |
+| `status` | string | `paid`, `pending`, or `cancelled` |
+| `method` | string | `cash`, `credit_card`, `debit_card`, `pix`, or `health_plan` |
+| `bank_account_id` | string | Filter by a specific bank account |
+| `page` | integer | Page number (default: 1) |
+| `per_page` | integer | Records per page (max: 100, default: 20) |
+
+**Request — all paid payments for January 2025:**
+
+```bash
+GET https://api.bydoctor.com.br/v1/payments?status=paid&created_after=2025-01-01T00:00:00Z&created_before=2025-01-31T23:59:59Z&per_page=100
+Authorization: Bearer YOUR_API_KEY
+```
+
+**Response:**
+
+```json
+{
+  "data": [
+    {
+      "id": "pay_a1b2c3",
+      "clinic_id": "org_abc123",
+      "appointment_id": "apt_f47ac10b",
+      "patient_id": "pat_xyz789",
+      "amount": 25000,
+      "method": "pix",
+      "status": "paid",
+      "bank_account_id": "bac_001",
+      "paid_at": "2025-01-20T09:35:00Z",
+      "created_at": "2025-01-20T09:00:00Z",
+      "updated_at": "2025-01-20T09:35:00Z"
+    },
+    {
+      "id": "pay_d4e5f6",
+      "clinic_id": "org_abc123",
+      "appointment_id": "apt_g58bd21c",
+      "patient_id": "pat_uvw456",
+      "amount": 18000,
+      "method": "credit_card",
+      "status": "paid",
+      "bank_account_id": "bac_001",
+      "paid_at": "2025-01-20T11:10:00Z",
+      "created_at": "2025-01-20T11:00:00Z",
+      "updated_at": "2025-01-20T11:10:00Z"
+    },
+    {
+      "id": "pay_g7h8i9",
+      "clinic_id": "org_abc123",
+      "appointment_id": "apt_h69ce32d",
+      "patient_id": "pat_rst123",
+      "amount": 35000,
+      "method": "health_plan",
+      "status": "paid",
+      "bank_account_id": "bac_002",
+      "paid_at": "2025-01-21T08:00:00Z",
+      "created_at": "2025-01-20T14:00:00Z",
+      "updated_at": "2025-01-21T08:00:00Z"
+    }
+  ],
+  "meta": {
+    "total": 3,
+    "page": 1,
+    "per_page": 100,
+    "total_pages": 1
+  }
+}
+```
+
+## Aggregating monthly revenue
+
+The following JavaScript example fetches all paid payments for a given month and produces a total revenue figure, handling pagination automatically.
+
+```javascript
+async function getMonthlyRevenue(year, month, clinicId, apiKey) {
+  const startOfMonth = new Date(year, month - 1, 1).toISOString();
+  const endOfMonth   = new Date(year, month, 0, 23, 59, 59).toISOString();
+
+  let page = 1;
+  let totalCentavos = 0;
+  let hasMore = true;
+
+  while (hasMore) {
+    const url = new URL("https://api.bydoctor.com.br/v1/payments");
+    url.searchParams.set("status", "paid");
+    url.searchParams.set("clinic_id", clinicId);
+    url.searchParams.set("created_after", startOfMonth);
+    url.searchParams.set("created_before", endOfMonth);
+    url.searchParams.set("per_page", "100");
+    url.searchParams.set("page", String(page));
+
+    const res = await fetch(url.toString(), {
+      headers: { Authorization: `Bearer ${apiKey}` },
+    });
+
+    const json = await res.json();
+
+    for (const payment of json.data) {
+      totalCentavos += payment.amount;
+    }
+
+    hasMore = page < json.meta.total_pages;
+    page++;
+  }
+
+  // Convert centavos to reais for display
+  const totalReais = (totalCentavos / 100).toFixed(2);
+  console.log(`Total revenue for ${year}-${String(month).padStart(2, "0")}: R$ ${totalReais}`);
+  return totalCentavos;
+}
+
+await getMonthlyRevenue(2025, 1, "org_abc123", process.env.BYDOCTOR_API_KEY);
+// → Total revenue for 2025-01: R$ 780.00
+```
+
+## Revenue breakdown by payment method
+
+Group the same payment list by `method` to produce a payment-method breakdown report — useful for understanding the split between card, PIX, and health plan receipts.
+
+```javascript
+async function revenueByMethod(year, month, clinicId, apiKey) {
+  const payments = await fetchAllPaidPayments(year, month, clinicId, apiKey);
+
+  const breakdown = payments.reduce((acc, payment) => {
+    acc[payment.method] = (acc[payment.method] ?? 0) + payment.amount;
+    return acc;
+  }, {});
+
+  // Convert to reais and print
+  for (const [method, centavos] of Object.entries(breakdown)) {
+    console.log(`${method}: R$ ${(centavos / 100).toFixed(2)}`);
+  }
+
+  return breakdown;
+}
+
+// Example output:
+// pix:          R$ 250.00
+// credit_card:  R$ 180.00
+// health_plan:  R$ 350.00
+```
+
+## Health plan reconciliation
+
+To support **TISS** (Troca de Informações em Saúde Suplementar) reporting, filter payments by `method=health_plan` and cross-reference each result with its linked appointment.
+
+```bash
+GET https://api.bydoctor.com.br/v1/payments?method=health_plan&status=paid&created_after=2025-01-01T00:00:00Z&created_before=2025-01-31T23:59:59Z
+Authorization: Bearer YOUR_API_KEY
+```
+
+For each payment returned, use `appointment_id` to fetch the full appointment (including `patient_id`, `professional_id`, and `starts_at`) to build the procedure and beneficiary data required in the TISS XML guide.
+
+## Webhook-based real-time updates
+
+Subscribe to `payment.paid` to push financial data into your accounting system the moment a payment is confirmed, rather than polling periodically.
+
+```bash
+POST https://api.bydoctor.com.br/v1/webhooks
+Authorization: Bearer YOUR_API_KEY
+Content-Type: application/json
+```
+
+```json
+{
+  "url": "https://your-app.com/webhooks/bydoctor",
+  "events": ["payment.paid"],
+  "secret": "your_webhook_signing_secret"
+}
+```
+
+The following example receives the `payment.paid` event and forwards it to a hypothetical accounting API:
+
+```javascript
+const express = require("express");
+const crypto  = require("crypto");
+
+const app = express();
+app.use(express.json());
+
+function verifySignature(body, signature, secret) {
+  const expected = crypto
+    .createHmac("sha256", secret)
+    .update(JSON.stringify(body))
+    .digest("hex");
+  return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(signature));
+}
+
+app.post("/webhooks/bydoctor", async (req, res) => {
+  const signature = req.headers["x-bydoctor-signature"];
+
+  if (!verifySignature(req.body, signature, process.env.WEBHOOK_SECRET)) {
+    return res.status(401).send("Invalid signature");
+  }
+
+  const { event, data: payment } = req.body;
+
+  if (event === "payment.paid") {
+    // Map ByDoctor payment to your accounting system's schema
+    const entry = {
+      externalId:   payment.id,
+      date:         payment.paid_at,
+      amountBRL:    payment.amount / 100,          // Convert centavos → reais
+      method:       payment.method,
+      description:  `Consulta — ${payment.appointment_id}`,
+      accountId:    payment.bank_account_id,
+    };
+
+    // Forward to accounting API
+    await fetch("https://accounting.your-app.com/entries", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(entry),
+    });
+
+    console.log(`Recorded payment ${payment.id} — R$ ${entry.amountBRL.toFixed(2)}`);
+  }
+
+  res.sendStatus(200);
+});
+
+app.listen(3000);
+```
+
+## Bank accounts
+
+If your clinic has multiple bank accounts configured in ByDoctor, use `GET /bank-accounts` to retrieve them. The `bank_account_id` on each payment tells you which account received the funds — useful when routing revenue data to different ledgers in your accounting system.
+
+```bash
+GET https://api.bydoctor.com.br/v1/bank-accounts
+Authorization: Bearer YOUR_API_KEY
+```
+
+```json
+{
+  "data": [
+    { "id": "bac_001", "name": "Conta Principal", "bank": "Itaú", "agency": "1234", "account": "56789-0" },
+    { "id": "bac_002", "name": "Conta Planos de Saúde", "bank": "Bradesco", "agency": "5678", "account": "01234-5" }
+  ]
+}
+```
+
+<Note>
+If you prefer a one-off export rather than a programmatic integration, the ByDoctor dashboard supports **manual CSV export** from the **Financial** section. Navigate to Financial → Reports → Export and select your date range and filters. This is ideal for ad-hoc audits or sharing data with an accountant who does not need API access.
+</Note>

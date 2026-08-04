@@ -1,0 +1,267 @@
+---
+title: "Sync Appointments Between ByDoctor and External Systems"
+sidebarTitle: "Scheduling"
+description: "Integrate ByDoctor scheduling with external calendars or booking platforms to avoid double-booking and display real-time availability."
+---
+
+Keeping your external tools in sync with ByDoctor appointments prevents double-booking, ensures patients see accurate availability, and eliminates manual data entry across systems. This guide walks you through two integration approaches — polling and webhooks — and shows you how to check availability and create appointments programmatically.
+
+## Approaches to syncing
+
+You have two strategies for keeping an external calendar or booking platform aligned with ByDoctor. Webhooks are the recommended approach for production integrations because they are real-time and reduce unnecessary API calls.
+
+<Tabs>
+  <Tab title="Polling (simple)">
+    Periodically call `GET /appointments` with `starts_after` and `starts_before` filters and upsert the results into your system. This is straightforward to implement but introduces latency equal to your polling interval and increases API usage.
+
+    ```bash
+    GET /appointments?starts_after=2025-01-20T00:00:00Z&starts_before=2025-01-20T23:59:59Z&page=1&per_page=50
+    ```
+
+    Paginate through all results using the `page` and `per_page` query parameters. Continue requesting the next page until the response's `meta.total_pages` value equals the current page number. For each appointment returned, upsert it into your external system using the ByDoctor `id` field as your primary key.
+  </Tab>
+  <Tab title="Webhooks (recommended)">
+    Subscribe to ByDoctor webhook events and react to changes in real time. The four events relevant to scheduling are:
+
+    | Event | Fired when |
+    |---|---|
+    | `appointment.created` | A new appointment is booked |
+    | `appointment.updated` | Any field on an appointment changes |
+    | `appointment.confirmed` | Status transitions to `confirmed` |
+    | `appointment.cancelled` | Status transitions to `cancelled` |
+
+    Your endpoint receives a `POST` request with a JSON body containing the full appointment object and the event type. Respond with `HTTP 200` to acknowledge receipt; ByDoctor retries up to five times with exponential back-off if your endpoint returns any other status.
+  </Tab>
+</Tabs>
+
+## Webhook-based sync: step by step
+
+<Steps>
+  <Step title="Register your webhook endpoint">
+    Call `POST /webhooks` with the URL of your listener and the list of events you want to subscribe to.
+
+    ```bash
+    POST https://api.bydoctor.com.br/v1/webhooks
+    Authorization: Bearer YOUR_API_KEY
+    Content-Type: application/json
+    ```
+
+    ```json
+    {
+      "url": "https://your-app.com/webhooks/bydoctor",
+      "events": [
+        "appointment.created",
+        "appointment.updated",
+        "appointment.confirmed",
+        "appointment.cancelled"
+      ],
+      "secret": "your_webhook_signing_secret"
+    }
+    ```
+
+    Save the `secret` you provide — ByDoctor uses it to sign every webhook payload with an `X-ByDoctor-Signature` header so you can verify authenticity.
+  </Step>
+
+  <Step title="Handle appointment.created → create an external calendar event">
+    When ByDoctor fires `appointment.created`, create the corresponding event in your external calendar using the appointment's `id` as the external event identifier.
+
+    <CodeGroup>
+    ```javascript Node.js
+    const express = require("express");
+    const crypto = require("crypto");
+    const { google } = require("googleapis");
+
+    const app = express();
+    app.use(express.json());
+
+    function verifySignature(rawBody, signature, secret) {
+      const expected = crypto
+        .createHmac("sha256", secret)
+        .update(rawBody)
+        .digest("hex");
+      return crypto.timingSafeEqual(
+        Buffer.from(expected),
+        Buffer.from(signature)
+      );
+    }
+
+    app.post("/webhooks/bydoctor", async (req, res) => {
+      const signature = req.headers["x-bydoctor-signature"];
+      if (!verifySignature(JSON.stringify(req.body), signature, process.env.WEBHOOK_SECRET)) {
+        return res.status(401).send("Invalid signature");
+      }
+
+      const { event, data: appointment } = req.body;
+
+      if (event === "appointment.created") {
+        await createCalendarEvent(appointment);
+      }
+
+      res.sendStatus(200);
+    });
+
+    async function createCalendarEvent(appointment) {
+      const calendar = google.calendar({ version: "v3", auth: getGoogleAuth() });
+
+      await calendar.events.insert({
+        calendarId: "primary",
+        requestBody: {
+          id: appointment.id.replace("apt_", ""), // Google IDs must be alphanumeric
+          summary: `Consulta — ${appointment.type === "teleconsulta" ? "Teleconsulta" : "Presencial"}`,
+          start: { dateTime: appointment.starts_at },
+          end:   { dateTime: appointment.ends_at },
+          description: appointment.notes ?? "",
+          extendedProperties: {
+            private: { bydoctor_id: appointment.id },
+          },
+        },
+      });
+    }
+    ```
+    </CodeGroup>
+  </Step>
+
+  <Step title="Handle appointment.updated → update the external event">
+    For `appointment.updated`, fetch the existing external event by the ByDoctor `id` stored in `extendedProperties` and patch only the fields that changed.
+
+    ```javascript
+    if (event === "appointment.updated") {
+      const calendar = google.calendar({ version: "v3", auth: getGoogleAuth() });
+
+      // Find the event by the stored bydoctor_id
+      const existing = await calendar.events.list({
+        calendarId: "primary",
+        privateExtendedProperty: `bydoctor_id=${appointment.id}`,
+        singleEvents: true,
+      });
+
+      const googleEventId = existing.data.items[0]?.id;
+      if (!googleEventId) return;
+
+      await calendar.events.patch({
+        calendarId: "primary",
+        eventId: googleEventId,
+        requestBody: {
+          start: { dateTime: appointment.starts_at },
+          end:   { dateTime: appointment.ends_at },
+          description: appointment.notes ?? "",
+        },
+      });
+    }
+    ```
+  </Step>
+
+  <Step title="Handle appointment.cancelled → remove or mark the event">
+    Delete the external calendar event when a cancellation arrives, or mark it with a cancelled status depending on your audit requirements.
+
+    ```javascript
+    if (event === "appointment.cancelled") {
+      const calendar = google.calendar({ version: "v3", auth: getGoogleAuth() });
+
+      const existing = await calendar.events.list({
+        calendarId: "primary",
+        privateExtendedProperty: `bydoctor_id=${appointment.id}`,
+        singleEvents: true,
+      });
+
+      const googleEventId = existing.data.items[0]?.id;
+      if (!googleEventId) return;
+
+      // Hard delete — use events.patch with status: "cancelled" if you need an audit trail
+      await calendar.events.delete({
+        calendarId: "primary",
+        eventId: googleEventId,
+      });
+    }
+    ```
+  </Step>
+</Steps>
+
+## Checking availability before booking
+
+Before creating an appointment, verify that the professional has an open slot using the availability endpoint.
+
+```bash
+GET https://api.bydoctor.com.br/v1/schedules/availability?professional_id=pro_def456&date=2025-01-20&duration=30
+Authorization: Bearer YOUR_API_KEY
+```
+
+**Example response:**
+
+```json
+{
+  "professional_id": "pro_def456",
+  "date": "2025-01-20",
+  "duration_minutes": 30,
+  "timezone": "America/Sao_Paulo",
+  "slots": [
+    { "starts_at": "2025-01-20T09:00:00Z", "ends_at": "2025-01-20T09:30:00Z", "available": true },
+    { "starts_at": "2025-01-20T09:30:00Z", "ends_at": "2025-01-20T10:00:00Z", "available": false },
+    { "starts_at": "2025-01-20T10:00:00Z", "ends_at": "2025-01-20T10:30:00Z", "available": true },
+    { "starts_at": "2025-01-20T10:30:00Z", "ends_at": "2025-01-20T11:00:00Z", "available": true }
+  ]
+}
+```
+
+Filter the response to slots where `available` is `true` before presenting options to the patient.
+
+## Creating an appointment
+
+Once you have confirmed availability, create the appointment with `POST /appointments`.
+
+```bash
+POST https://api.bydoctor.com.br/v1/appointments
+Authorization: Bearer YOUR_API_KEY
+Content-Type: application/json
+```
+
+```json
+{
+  "clinic_id": "org_abc123",
+  "patient_id": "pat_xyz789",
+  "professional_id": "pro_def456",
+  "starts_at": "2025-01-20T09:00:00Z",
+  "ends_at": "2025-01-20T09:30:00Z",
+  "type": "presencial",
+  "notes": "Primeira consulta",
+  "notify_patient": true
+}
+```
+
+**Response — `201 Created`:**
+
+```json
+{
+  "id": "apt_f47ac10b",
+  "clinic_id": "org_abc123",
+  "patient_id": "pat_xyz789",
+  "professional_id": "pro_def456",
+  "starts_at": "2025-01-20T09:00:00Z",
+  "ends_at": "2025-01-20T09:30:00Z",
+  "type": "presencial",
+  "status": "scheduled",
+  "notes": "Primeira consulta",
+  "payment_status": "pending",
+  "created_at": "2025-01-15T14:30:00Z",
+  "updated_at": "2025-01-15T14:30:00Z"
+}
+```
+
+<Note>
+All timestamps in the API are in **UTC**. When displaying times to patients or staff in Brazil, convert to the `America/Sao_Paulo` timezone (UTC−3, or UTC−2 during Daylight Saving Time). In JavaScript, use `Intl.DateTimeFormat` with `timeZone: "America/Sao_Paulo"`, or a library like `date-fns-tz`:
+
+```javascript
+import { formatInTimeZone } from "date-fns-tz";
+
+const localTime = formatInTimeZone(
+  new Date(appointment.starts_at),
+  "America/Sao_Paulo",
+  "dd/MM/yyyy HH:mm"
+);
+// → "20/01/2025 06:00"
+```
+</Note>
+
+<Tip>
+Use the ByDoctor appointment `id` (e.g., `apt_f47ac10b`) as your external calendar event's unique identifier. Storing it as a custom property means you can always look up the external event from the ByDoctor ID and avoid creating duplicates when processing webhook retries.
+</Tip>

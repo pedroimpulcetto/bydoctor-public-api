@@ -1,0 +1,183 @@
+---
+title: "List Appointments — GET /appointments"
+sidebarTitle: "List"
+description: "GET /appointments — retrieve a paginated list of appointments for your clinic. Filter by date range, status, and professional."
+---
+
+The List Appointments endpoint returns a cursor-paginated collection of appointments belonging to your clinic. You can narrow results by date range, status, assigned professional, patient, or appointment type, and control the sort order to suit your workflow. Each response includes a `meta` object so you can determine whether more pages exist and fetch them using the `cursor` parameter.
+
+## Request
+
+<ParamField query="limit" type="integer" default={20}>
+  The maximum number of appointment records to return per page. Must be between 1 and 100.
+</ParamField>
+
+<ParamField query="cursor" type="string">
+  An opaque pagination cursor returned in `meta.next_cursor` from a previous response. Pass this value to retrieve the next page of results. Omit on the first request.
+</ParamField>
+
+<ParamField query="starts_after" type="string">
+  Return only appointments whose `starts_at` is strictly after this ISO 8601 UTC timestamp. Example: `2025-06-01T00:00:00Z`.
+</ParamField>
+
+<ParamField query="starts_before" type="string">
+  Return only appointments whose `starts_at` is strictly before this ISO 8601 UTC timestamp. Example: `2025-06-30T23:59:59Z`.
+</ParamField>
+
+<ParamField query="status" type="string">
+  Filter results to a single status. Accepted values: `scheduled`, `confirmed`, `cancelled`, `completed`, `no_show`.
+</ParamField>
+
+<ParamField query="professional_id" type="string">
+  Filter results to appointments assigned to this professional UUID.
+</ParamField>
+
+<ParamField query="patient_id" type="string">
+  Filter results to appointments linked to this patient UUID.
+</ParamField>
+
+<ParamField query="type" type="string">
+  Filter results by appointment type. Accepted values: `presencial`, `teleconsulta`.
+</ParamField>
+
+<ParamField query="sort" type="string" default="created_at">
+  The field to sort results by. Accepted values: `created_at`, `starts_at`.
+</ParamField>
+
+<ParamField query="order" type="string" default="desc">
+  The sort direction. Accepted values: `asc`, `desc`.
+</ParamField>
+
+## Response Fields
+
+<ResponseField name="data" type="array">
+  An array of appointment objects matching your query filters.
+
+  <Expandable title="Appointment object">
+    <ResponseField name="id" type="string">
+      Unique identifier for the appointment (UUID).
+    </ResponseField>
+    <ResponseField name="clinic_id" type="string">
+      The ID of the clinic that owns this appointment.
+    </ResponseField>
+    <ResponseField name="patient_id" type="string">
+      The ID of the patient linked to this appointment.
+    </ResponseField>
+    <ResponseField name="professional_id" type="string">
+      The ID of the professional assigned to this appointment.
+    </ResponseField>
+    <ResponseField name="starts_at" type="string">
+      Appointment start time in ISO 8601 UTC format.
+    </ResponseField>
+    <ResponseField name="ends_at" type="string">
+      Appointment end time in ISO 8601 UTC format.
+    </ResponseField>
+    <ResponseField name="type" type="string">
+      Appointment type: `presencial` or `teleconsulta`.
+    </ResponseField>
+    <ResponseField name="status" type="string">
+      Current status: `scheduled`, `confirmed`, `cancelled`, `completed`, or `no_show`.
+    </ResponseField>
+    <ResponseField name="notes" type="string">
+      Internal notes attached to the appointment. May be `null`.
+    </ResponseField>
+    <ResponseField name="payment_status" type="string">
+      Payment status: `pending`, `paid`, or `overdue`.
+    </ResponseField>
+    <ResponseField name="teleconsult_url" type="string">
+      Video room URL. Present only when `type` is `teleconsulta`. May be `null`.
+    </ResponseField>
+    <ResponseField name="created_at" type="string">
+      Timestamp when the appointment was created (ISO 8601 UTC).
+    </ResponseField>
+    <ResponseField name="updated_at" type="string">
+      Timestamp of the last update to the appointment (ISO 8601 UTC).
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="meta" type="object">
+  Pagination metadata for the current response.
+
+  <Expandable title="Meta object">
+    <ResponseField name="total" type="integer">
+      Total number of appointments matching the current filters.
+    </ResponseField>
+    <ResponseField name="has_more" type="boolean">
+      `true` if additional pages are available beyond the current response.
+    </ResponseField>
+    <ResponseField name="next_cursor" type="string">
+      Cursor value to pass as the `cursor` query parameter to retrieve the next page. `null` when `has_more` is `false`.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<Tip>
+  Combine `starts_after` and `starts_before` to build a date-range report. For example, pass the first and last instant of a calendar month to pull a complete monthly schedule.
+</Tip>
+
+## Example Request
+
+```bash
+curl --request GET \
+  --url "https://api.bydoctor.com.br/v1/appointments?limit=2&starts_after=2025-06-01T00:00:00Z&starts_before=2025-06-30T23:59:59Z&status=confirmed&order=asc" \
+  --header "Authorization: Bearer YOUR_API_KEY" \
+  --header "Accept: application/json"
+```
+
+## Example Response (200 OK)
+
+```json
+{
+  "data": [
+    {
+      "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+      "clinic_id": "clinic_01HX1234ABCD",
+      "patient_id": "pat_01HX5678EFGH",
+      "professional_id": "pro_01HX9012IJKL",
+      "starts_at": "2025-06-10T09:00:00Z",
+      "ends_at": "2025-06-10T09:30:00Z",
+      "type": "presencial",
+      "status": "confirmed",
+      "notes": null,
+      "payment_status": "pending",
+      "teleconsult_url": null,
+      "created_at": "2025-05-28T14:22:10Z",
+      "updated_at": "2025-05-29T08:05:00Z"
+    },
+    {
+      "id": "b2c3d4e5-f6a7-8901-bcde-f12345678901",
+      "clinic_id": "clinic_01HX1234ABCD",
+      "patient_id": "pat_01HX1111MNOP",
+      "professional_id": "pro_01HX9012IJKL",
+      "starts_at": "2025-06-10T10:00:00Z",
+      "ends_at": "2025-06-10T10:45:00Z",
+      "type": "teleconsulta",
+      "status": "confirmed",
+      "notes": "Follow-up from previous visit.",
+      "payment_status": "paid",
+      "teleconsult_url": "https://meet.bydoctor.com.br/room/b2c3d4e5",
+      "created_at": "2025-05-30T11:00:00Z",
+      "updated_at": "2025-05-30T11:00:00Z"
+    }
+  ],
+  "meta": {
+    "total": 48,
+    "has_more": true,
+    "next_cursor": "cursor_eyJpZCI6ImIyYzNkNGU1In0"
+  }
+}
+```
+
+## Error Responses
+
+**401 Unauthorized** — Your API key is missing or invalid.
+
+```json
+{
+  "error": {
+    "code": "unauthorized",
+    "message": "Invalid or missing API key. Provide a valid Bearer token in the Authorization header."
+  }
+}
+```

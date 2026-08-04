@@ -1,0 +1,248 @@
+---
+title: "Sync Patient Records Between ByDoctor and Your CRM"
+sidebarTitle: "Patient Sync"
+description: "Keep patient data consistent between ByDoctor and external CRMs, EHRs, or databases using the Patients API and webhook events."
+---
+
+Patient records are the foundation of every clinical workflow. Whether you are migrating an existing patient database into ByDoctor, pushing new patients from a CRM, or keeping a downstream EHR up to date, the Patients API gives you the tools to create, search, update, and bulk-import records programmatically.
+
+<Warning>
+Patient records in ByDoctor include the **CPF** (Cadastro de Pessoa Física — Brazilian individual tax ID) and protected health information. Under the **LGPD** (Lei Geral de Proteção de Dados), this data must be processed lawfully, stored only in Brazil, and never shared with unauthorised third parties. Ensure your integration stores and transmits patient data over HTTPS, applies access controls, and has a documented legal basis for processing.
+</Warning>
+
+## Creating a patient
+
+Use `POST /patients` to add a new patient to a clinic. The `name` and `phone` fields are required; all other fields are optional but strongly recommended for a complete clinical record.
+
+```bash
+POST https://api.bydoctor.com.br/v1/patients
+Authorization: Bearer YOUR_API_KEY
+Content-Type: application/json
+```
+
+```json
+{
+  "clinic_id": "org_abc123",
+  "name": "Maria Silva",
+  "cpf": "123.456.789-00",
+  "phone": "+5511999999999",
+  "email": "maria@example.com",
+  "date_of_birth": "1985-03-15",
+  "health_plan": "Unimed"
+}
+```
+
+**Response — `201 Created`:**
+
+```json
+{
+  "id": "pat_xyz789",
+  "clinic_id": "org_abc123",
+  "name": "Maria Silva",
+  "cpf": "123.456.789-00",
+  "phone": "+5511999999999",
+  "email": "maria@example.com",
+  "date_of_birth": "1985-03-15",
+  "health_plan": "Unimed",
+  "created_at": "2025-01-10T10:00:00Z",
+  "updated_at": "2025-01-10T10:00:00Z"
+}
+```
+
+<Tip>
+Always send phone numbers in **E.164 format** — a leading `+`, the country code, area code, and number with no spaces or punctuation (e.g., `+5511999999999`). ByDoctor uses this number to send WhatsApp notifications; an incorrectly formatted number silently prevents delivery.
+</Tip>
+
+## Searching for patients
+
+Before creating a patient, search for an existing record to avoid duplicates. `GET /patients?search=` matches against name, phone, and CPF simultaneously.
+
+```bash
+GET https://api.bydoctor.com.br/v1/patients?search=Maria&clinic_id=org_abc123
+Authorization: Bearer YOUR_API_KEY
+```
+
+```json
+{
+  "data": [
+    {
+      "id": "pat_xyz789",
+      "name": "Maria Silva",
+      "cpf": "123.456.789-00",
+      "phone": "+5511999999999",
+      "email": "maria@example.com",
+      "date_of_birth": "1985-03-15",
+      "health_plan": "Unimed",
+      "created_at": "2025-01-10T10:00:00Z",
+      "updated_at": "2025-01-10T10:00:00Z"
+    }
+  ],
+  "meta": { "total": 1, "page": 1, "per_page": 20, "total_pages": 1 }
+}
+```
+
+For deduplication, prefer searching by CPF or phone rather than name — these are unique identifiers, while names can have spelling variations. Use `?search=123.456.789-00` or `?search=+5511999999999` for precise lookups.
+
+## Updating a patient
+
+Use `PATCH /patients/{id}` to apply a partial update. Send only the fields you want to change — all other fields remain untouched.
+
+```bash
+PATCH https://api.bydoctor.com.br/v1/patients/pat_xyz789
+Authorization: Bearer YOUR_API_KEY
+Content-Type: application/json
+```
+
+```json
+{
+  "email": "maria.silva@newdomain.com",
+  "health_plan": "Bradesco Saúde"
+}
+```
+
+**Response — `200 OK`** returns the full updated patient object.
+
+## Deduplication strategy
+
+When syncing from an external system, determine whether a patient already exists in ByDoctor before deciding to create or update:
+
+1. **Search by CPF** — CPF is a national unique identifier; if a match is found, it is the same person.
+2. **Search by phone** — Use as a secondary fallback if CPF is unavailable.
+3. **If no match is found** — Call `POST /patients` to create the record.
+4. **If a match is found** — Compare fields and call `PATCH /patients/{id}` only if data has changed.
+
+## Bulk import from CSV
+
+<Steps>
+  <Step title="Parse the CSV file">
+    Read the file row by row and normalise the data — strip formatting from CPF (remove `.` and `-`), convert phone numbers to E.164, and standardise date formats to `YYYY-MM-DD`.
+
+    ```javascript
+    const fs = require("fs");
+    const { parse } = require("csv-parse/sync");
+
+    const raw = fs.readFileSync("patients.csv", "utf8");
+    const rows = parse(raw, { columns: true, skip_empty_lines: true });
+
+    const patients = rows.map((row) => ({
+      name: row.name.trim(),
+      cpf: row.cpf.replace(/[.\-]/g, ""),
+      phone: row.phone.startsWith("+") ? row.phone : `+55${row.phone.replace(/\D/g, "")}`,
+      email: row.email?.trim() || undefined,
+      date_of_birth: row.date_of_birth,
+      health_plan: row.health_plan || undefined,
+    }));
+    ```
+  </Step>
+
+  <Step title="Check each patient by CPF or phone">
+    Query ByDoctor for each patient before writing to avoid duplicates.
+
+    ```javascript
+    async function findPatient(cpf, phone, clinicId, apiKey) {
+      const query = cpf || phone;
+      const res = await fetch(
+        `https://api.bydoctor.com.br/v1/patients?search=${encodeURIComponent(query)}&clinic_id=${clinicId}`,
+        { headers: { Authorization: `Bearer ${apiKey}` } }
+      );
+      const json = await res.json();
+      return json.data[0] ?? null;
+    }
+    ```
+  </Step>
+
+  <Step title="Create if missing, update if changed">
+    Upsert each patient based on the lookup result.
+
+    ```javascript
+    async function upsertPatient(incoming, clinicId, apiKey) {
+      const existing = await findPatient(incoming.cpf, incoming.phone, clinicId, apiKey);
+
+      if (!existing) {
+        // Create
+        const res = await fetch("https://api.bydoctor.com.br/v1/patients", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ clinic_id: clinicId, ...incoming }),
+        });
+        const created = await res.json();
+        console.log(`Created patient ${created.id}`);
+        return created;
+      }
+
+      // Check for changes before patching
+      const hasChanges =
+        existing.email !== incoming.email ||
+        existing.health_plan !== incoming.health_plan ||
+        existing.date_of_birth !== incoming.date_of_birth;
+
+      if (hasChanges) {
+        const res = await fetch(`https://api.bydoctor.com.br/v1/patients/${existing.id}`, {
+          method: "PATCH",
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            email: incoming.email,
+            health_plan: incoming.health_plan,
+            date_of_birth: incoming.date_of_birth,
+          }),
+        });
+        const updated = await res.json();
+        console.log(`Updated patient ${updated.id}`);
+        return updated;
+      }
+
+      console.log(`No changes for patient ${existing.id}`);
+      return existing;
+    }
+
+    // Run the bulk import
+    for (const patient of patients) {
+      await upsertPatient(patient, "org_abc123", process.env.BYDOCTOR_API_KEY);
+    }
+    ```
+  </Step>
+</Steps>
+
+## Webhook-based sync
+
+Subscribe to `patient.created` and `patient.updated` events to push changes from ByDoctor into your external system in real time — for example, to update a CRM or populate a data warehouse.
+
+```bash
+POST https://api.bydoctor.com.br/v1/webhooks
+Authorization: Bearer YOUR_API_KEY
+Content-Type: application/json
+```
+
+```json
+{
+  "url": "https://your-app.com/webhooks/bydoctor",
+  "events": ["patient.created", "patient.updated"],
+  "secret": "your_webhook_signing_secret"
+}
+```
+
+Handle each event in your listener:
+
+```javascript
+app.post("/webhooks/bydoctor", express.json(), async (req, res) => {
+  const { event, data: patient } = req.body;
+
+  if (event === "patient.created" || event === "patient.updated") {
+    // Push to your CRM
+    await crm.upsertContact({
+      externalId: patient.id,
+      name: patient.name,
+      phone: patient.phone,
+      email: patient.email,
+    });
+  }
+
+  res.sendStatus(200);
+});
+```

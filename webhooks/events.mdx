@@ -1,0 +1,211 @@
+---
+title: "ByDoctor Webhook Event Types and Payload Schemas"
+sidebarTitle: "Events"
+description: "Reference for all ByDoctor webhook event types — what triggers each one, the full JSON payload structure, and key fields in the data object."
+---
+
+Every webhook delivery from ByDoctor shares the same outer envelope, regardless of the event type. The `data` field is the only part that varies — it contains the full resource object as it existed at the moment the event fired. Understanding the envelope first makes it easy to handle any event type with a single dispatcher.
+
+## Event Envelope
+
+All webhook payloads follow this top-level structure:
+
+```json
+{
+  "id": "evt_01HXYZ",
+  "event": "appointment.created",
+  "created_at": "2025-01-15T14:30:00Z",
+  "clinic_id": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+  "data": { ... }
+}
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `id` | string | Unique event ID. Use this as your idempotency key to safely deduplicate retried deliveries. |
+| `event` | string | The event type, formatted as `resource.action`. |
+| `created_at` | string (ISO 8601) | UTC timestamp of when the event was generated. |
+| `clinic_id` | string (UUID) | The clinic that owns the resource. |
+| `data` | object | The full resource object associated with the event. |
+
+---
+
+## Appointment Events
+
+Appointment events fire when the lifecycle state of a scheduled appointment changes. They cover everything from initial booking through completion or no-show.
+
+<Accordion title="View full appointment.created payload">
+```json
+{
+  "id": "evt_01HAPT001",
+  "event": "appointment.created",
+  "created_at": "2025-01-15T14:30:00Z",
+  "clinic_id": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+  "data": {
+    "id": "apt_9kL2mNpQ",
+    "status": "scheduled",
+    "scheduled_at": "2025-01-20T09:00:00Z",
+    "duration_minutes": 30,
+    "specialty": "Dermatology",
+    "notes": "First visit — general skin checkup",
+    "patient": {
+      "id": "pat_xR7tYuVw",
+      "name": "Maria Oliveira",
+      "email": "maria.oliveira@email.com",
+      "phone": "+5511999887766"
+    },
+    "doctor": {
+      "id": "doc_bZ3cDeFg",
+      "name": "Dr. Carlos Mendes",
+      "crm": "CRM/SP 123456"
+    },
+    "clinic_id": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+    "created_at": "2025-01-15T14:30:00Z",
+    "updated_at": "2025-01-15T14:30:00Z"
+  }
+}
+```
+</Accordion>
+
+| Event | When it fires | Key fields in `data` |
+|---|---|---|
+| `appointment.created` | A new appointment is booked (by staff or patient self-scheduling) | `id`, `status`, `scheduled_at`, `patient`, `doctor`, `specialty` |
+| `appointment.updated` | Any field on the appointment changes (time, doctor, notes) | `id`, `status`, `scheduled_at`, updated field(s) |
+| `appointment.confirmed` | The patient confirms the appointment via WhatsApp | `id`, `status` (`confirmed`), `confirmed_at` |
+| `appointment.cancelled` | The appointment is cancelled by staff or the patient | `id`, `status` (`cancelled`), `cancelled_at`, `cancellation_reason` |
+| `appointment.completed` | Staff marks the appointment as completed after the consultation | `id`, `status` (`completed`), `completed_at` |
+| `appointment.no_show` | The patient did not attend and staff marks a no-show | `id`, `status` (`no_show`), `no_show_at` |
+
+---
+
+## Patient Events
+
+Patient events fire when a patient record is created or updated in the clinic's directory.
+
+<Accordion title="View full patient.created payload">
+```json
+{
+  "id": "evt_01HPAT001",
+  "event": "patient.created",
+  "created_at": "2025-01-15T10:00:00Z",
+  "clinic_id": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+  "data": {
+    "id": "pat_xR7tYuVw",
+    "name": "Maria Oliveira",
+    "email": "maria.oliveira@email.com",
+    "phone": "+5511999887766",
+    "date_of_birth": "1988-03-22",
+    "cpf": "123.456.789-00",
+    "gender": "female",
+    "address": {
+      "street": "Rua das Flores, 142",
+      "neighborhood": "Jardim Paulista",
+      "city": "São Paulo",
+      "state": "SP",
+      "zip_code": "01452-001"
+    },
+    "health_insurance": {
+      "provider": "Unimed",
+      "plan": "Nacional Flex",
+      "member_id": "UN-987654321"
+    },
+    "clinic_id": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+    "created_at": "2025-01-15T10:00:00Z",
+    "updated_at": "2025-01-15T10:00:00Z"
+  }
+}
+```
+</Accordion>
+
+| Event | When it fires | Key fields in `data` |
+|---|---|---|
+| `patient.created` | A new patient record is added to the clinic | `id`, `name`, `email`, `phone`, `cpf`, `date_of_birth` |
+| `patient.updated` | Any field on the patient record is modified | `id`, updated field(s), `updated_at` |
+
+---
+
+## Payment Events
+
+Payment events track the financial lifecycle of charges associated with appointments or services.
+
+<Accordion title="View full payment.paid payload">
+```json
+{
+  "id": "evt_01HPAY001",
+  "event": "payment.paid",
+  "created_at": "2025-01-20T11:45:00Z",
+  "clinic_id": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+  "data": {
+    "id": "pay_qS8uTvWx",
+    "status": "paid",
+    "amount_cents": 25000,
+    "currency": "BRL",
+    "method": "credit_card",
+    "description": "Consulta Dermatologia — Dr. Carlos Mendes",
+    "appointment_id": "apt_9kL2mNpQ",
+    "patient": {
+      "id": "pat_xR7tYuVw",
+      "name": "Maria Oliveira"
+    },
+    "paid_at": "2025-01-20T11:45:00Z",
+    "invoice_url": "https://api.bydoctor.com.br/v1/payments/pay_qS8uTvWx/invoice",
+    "clinic_id": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+    "created_at": "2025-01-20T09:00:00Z",
+    "updated_at": "2025-01-20T11:45:00Z"
+  }
+}
+```
+</Accordion>
+
+| Event | When it fires | Key fields in `data` |
+|---|---|---|
+| `payment.created` | A payment record is generated (charge is pending) | `id`, `status` (`pending`), `amount_cents`, `method`, `appointment_id` |
+| `payment.paid` | The payment is confirmed as successfully received | `id`, `status` (`paid`), `paid_at`, `invoice_url` |
+| `payment.cancelled` | The payment is voided or reversed | `id`, `status` (`cancelled`), `cancelled_at`, `cancellation_reason` |
+
+<Note>
+  Monetary amounts are always expressed in **cents** (e.g., `25000` = R$ 250,00) to avoid floating-point precision issues. The `currency` field is always `BRL` for Brazilian Real.
+</Note>
+
+---
+
+## Teleconsultation Events
+
+Teleconsultation events fire at the boundaries of a video consultation session — when the session becomes active and when it ends.
+
+<Accordion title="View full teleconsultation.started payload">
+```json
+{
+  "id": "evt_01HTELE001",
+  "event": "teleconsultation.started",
+  "created_at": "2025-01-20T09:02:00Z",
+  "clinic_id": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+  "data": {
+    "id": "tele_hK4iJkLm",
+    "status": "in_progress",
+    "appointment_id": "apt_9kL2mNpQ",
+    "started_at": "2025-01-20T09:02:00Z",
+    "join_url_doctor": "https://meet.bydoctor.com.br/room/abc123?token=drToken",
+    "join_url_patient": "https://meet.bydoctor.com.br/room/abc123?token=patToken",
+    "patient": {
+      "id": "pat_xR7tYuVw",
+      "name": "Maria Oliveira"
+    },
+    "doctor": {
+      "id": "doc_bZ3cDeFg",
+      "name": "Dr. Carlos Mendes"
+    },
+    "clinic_id": "f47ac10b-58cc-4372-a567-0e02b2c3d479"
+  }
+}
+```
+</Accordion>
+
+| Event | When it fires | Key fields in `data` |
+|---|---|---|
+| `teleconsultation.started` | The doctor or patient joins the video room and the session goes live | `id`, `status` (`in_progress`), `started_at`, `appointment_id`, `join_url_doctor`, `join_url_patient` |
+| `teleconsultation.ended` | The last participant leaves and the session is closed | `id`, `status` (`ended`), `ended_at`, `duration_seconds`, `appointment_id` |
+
+<Tip>
+  Listen for `teleconsultation.ended` to automatically trigger post-consultation workflows such as sending a follow-up message to the patient, generating a prescription form, or releasing the payment charge.
+</Tip>

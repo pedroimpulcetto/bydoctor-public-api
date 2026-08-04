@@ -1,0 +1,147 @@
+---
+title: "List Professional Schedules — GET /schedules"
+sidebarTitle: "List"
+description: "GET /schedules — list all professionals and their configured working hours in your clinic."
+---
+
+The **List Professional Schedules** endpoint returns a paginated collection of schedules for all professionals configured in your clinic. Each schedule describes a professional's working hours broken down by day of the week, their default appointment slot duration, and their timezone. Use this endpoint to display professional availability templates, build configuration UIs, or synchronise schedule data to an external calendar system.
+
+## Endpoint
+
+```
+GET https://api.bydoctor.com.br/v1/schedules
+```
+
+## Authentication
+
+```
+Authorization: Bearer YOUR_API_KEY
+```
+
+## Query Parameters
+
+<ParamField query="limit" type="integer" default="20">
+  Maximum number of schedule records to return per page. Accepted range is `1`–`100`.
+</ParamField>
+
+<ParamField query="cursor" type="string">
+  Opaque pagination cursor returned as `next_cursor` in the previous response. Omit this parameter to start from the first page.
+</ParamField>
+
+<ParamField query="professional_id" type="string">
+  Filter results to the schedule belonging to a specific professional UUID. Returns a single-item list when the professional exists.
+</ParamField>
+
+## Response Fields
+
+### `data` array — Schedule object
+
+<ResponseField name="id" type="string" required>
+  Unique identifier for the schedule (UUID v4).
+</ResponseField>
+
+<ResponseField name="professional_id" type="string" required>
+  UUID of the professional this schedule belongs to.
+</ResponseField>
+
+<ResponseField name="professional_name" type="string" required>
+  Display name of the professional.
+</ResponseField>
+
+<ResponseField name="specialty" type="string" required>
+  Medical or healthcare specialty of the professional, e.g. `"Cardiologia"`.
+</ResponseField>
+
+<ResponseField name="working_hours" type="array" required>
+  Array of objects describing the professional's recurring weekly working windows.
+
+  <ResponseField name="working_hours[].day_of_week" type="integer" required>
+    Day of the week as an integer. `0` = Sunday, `1` = Monday, …, `6` = Saturday.
+  </ResponseField>
+
+  <ResponseField name="working_hours[].start_time" type="string" required>
+    Start of the working window in `HH:MM` 24-hour format, expressed in the schedule's `timezone`.
+  </ResponseField>
+
+  <ResponseField name="working_hours[].end_time" type="string" required>
+    End of the working window in `HH:MM` 24-hour format, expressed in the schedule's `timezone`.
+  </ResponseField>
+</ResponseField>
+
+<ResponseField name="appointment_duration" type="integer" required>
+  Default appointment slot duration in minutes. Used by [`GET /schedules/availability`](/api-reference/schedules/availability) when no `duration` override is specified.
+</ResponseField>
+
+<ResponseField name="timezone" type="string" required>
+  IANA timezone identifier for the professional's clinic location, e.g. `"America/Sao_Paulo"`. All `start_time` and `end_time` values in `working_hours` are relative to this timezone.
+</ResponseField>
+
+### `meta` object
+
+<ResponseField name="total" type="integer" required>
+  Total number of schedules matching the current query.
+</ResponseField>
+
+<ResponseField name="has_more" type="boolean" required>
+  `true` when there are additional pages of results.
+</ResponseField>
+
+<ResponseField name="next_cursor" type="string">
+  Cursor to pass on the next request. Present only when `has_more` is `true`.
+</ResponseField>
+
+<Note>
+  The `working_hours` array reflects the professional's **configured recurring schedule** in ByDoctor — it does not account for blocked time, holidays, or already-booked appointments. To find real-time open slots for a specific date, use [`GET /schedules/availability`](/api-reference/schedules/availability) instead.
+</Note>
+
+## Example Request
+
+```bash
+curl --request GET \
+  --url "https://api.bydoctor.com.br/v1/schedules?limit=1" \
+  --header "Authorization: Bearer YOUR_API_KEY"
+```
+
+## Example Response
+
+```json
+{
+  "data": [
+    {
+      "id": "d4e5f6a7-b8c9-0123-defa-234567890123",
+      "professional_id": "e5f6a7b8-c9d0-1234-efab-345678901234",
+      "professional_name": "Dra. Mariana Costa",
+      "specialty": "Cardiologia",
+      "working_hours": [
+        {
+          "day_of_week": 1,
+          "start_time": "08:00",
+          "end_time": "12:00"
+        },
+        {
+          "day_of_week": 1,
+          "start_time": "14:00",
+          "end_time": "18:00"
+        },
+        {
+          "day_of_week": 3,
+          "start_time": "08:00",
+          "end_time": "12:00"
+        },
+        {
+          "day_of_week": 5,
+          "start_time": "08:00",
+          "end_time": "13:00"
+        }
+      ],
+      "appointment_duration": 30,
+      "timezone": "America/Sao_Paulo"
+    }
+  ],
+  "meta": {
+    "total": 8,
+    "has_more": true,
+    "next_cursor": "eyJpZCI6ImQ0ZTVmNmE3In0"
+  }
+}
+```

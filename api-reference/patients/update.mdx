@@ -1,0 +1,143 @@
+---
+title: "Update Patient — PATCH /patients/{id}"
+sidebarTitle: "Update"
+description: "PATCH /patients/{id} — update patient contact details, health plan, or other fields. All fields are optional."
+---
+
+The **Update Patient** endpoint performs a partial update on an existing patient record. You only need to include the fields you want to change — any field omitted from the request body is left untouched. On success, the API returns the complete updated patient object. The `updated_at` timestamp is automatically refreshed to the current UTC time.
+
+## Endpoint
+
+```
+PATCH https://api.bydoctor.com.br/v1/patients/{id}
+```
+
+## Authentication
+
+```
+Authorization: Bearer YOUR_API_KEY
+```
+
+## Path Parameters
+
+<ParamField path="id" type="string" required>
+  The UUID of the patient record you want to update.
+</ParamField>
+
+## Request Body
+
+Send a JSON body with `Content-Type: application/json` containing only the fields you wish to update. All body fields are optional.
+
+<ParamField body="name" type="string">
+  Patient's full name. Must be between 2 and 255 characters.
+</ParamField>
+
+<ParamField body="phone" type="string">
+  Contact phone number in **E.164 format**, e.g. `+5511999999999`. Pass `null` to remove a previously stored phone number.
+</ParamField>
+
+<ParamField body="email" type="string">
+  Patient's email address. Pass `null` to remove a previously stored email.
+</ParamField>
+
+<ParamField body="cpf" type="string">
+  Brazilian individual taxpayer identifier in the format `123.456.789-00`. The CPF is re-validated for correct format and check digits. Pass `null` to remove a previously stored CPF.
+</ParamField>
+
+<ParamField body="date_of_birth" type="string">
+  Date of birth in `YYYY-MM-DD` format. The date must be in the past.
+</ParamField>
+
+<ParamField body="health_plan" type="string">
+  Name of the patient's health insurance plan. Pass `null` to clear the field.
+</ParamField>
+
+<Warning>
+  Updating a patient's `cpf` will fail with a `409 Conflict` error if another patient record in your clinic already holds the same CPF value. Resolve the conflict by first checking whether the CPF belongs to a duplicate profile that should be merged or deleted before retrying the update.
+</Warning>
+
+## Response Fields (200 OK)
+
+<ResponseField name="id" type="string" required>
+  UUID of the patient record.
+</ResponseField>
+
+<ResponseField name="clinic_id" type="string" required>
+  Identifier of the clinic this patient belongs to.
+</ResponseField>
+
+<ResponseField name="name" type="string" required>
+  Patient's full name after the update.
+</ResponseField>
+
+<ResponseField name="cpf" type="string">
+  CPF after the update, or `null` if not set.
+</ResponseField>
+
+<ResponseField name="phone" type="string">
+  Phone number after the update, or `null` if not set.
+</ResponseField>
+
+<ResponseField name="email" type="string">
+  Email address after the update, or `null` if not set.
+</ResponseField>
+
+<ResponseField name="date_of_birth" type="string">
+  Date of birth after the update, or `null` if not set.
+</ResponseField>
+
+<ResponseField name="health_plan" type="string">
+  Health plan name after the update, or `null` if not set.
+</ResponseField>
+
+<ResponseField name="whatsapp_opt_out" type="boolean" required>
+  Current WhatsApp opt-out status. This field is managed by the patient consent flow and cannot be overridden via this endpoint.
+</ResponseField>
+
+<ResponseField name="created_at" type="string" required>
+  ISO 8601 UTC timestamp of when the patient record was originally created. Unchanged by updates.
+</ResponseField>
+
+<ResponseField name="updated_at" type="string" required>
+  ISO 8601 UTC timestamp reflecting the moment this update was applied.
+</ResponseField>
+
+## Error Responses
+
+| Status | Code | Description |
+|--------|------|-------------|
+| `400 Bad Request` | `invalid_cpf_format` | The `cpf` value does not match the expected format or fails check-digit validation. |
+| `401 Unauthorized` | `unauthorized` | Your API key is missing or invalid. |
+| `404 Not Found` | `patient_not_found` | No patient with the given UUID exists in your clinic. |
+| `409 Conflict` | `cpf_already_exists` | Another patient in your clinic already has the same CPF. |
+
+## Example Request
+
+```bash
+curl --request PATCH \
+  --url "https://api.bydoctor.com.br/v1/patients/a1b2c3d4-e5f6-7890-abcd-ef1234567890" \
+  --header "Authorization: Bearer YOUR_API_KEY" \
+  --header "Content-Type: application/json" \
+  --data '{
+    "phone": "+5511911112222",
+    "health_plan": "SulAmérica"
+  }'
+```
+
+## Example Response
+
+```json
+{
+  "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "clinic_id": "clinic_01HXZ9QWERTY",
+  "name": "Ana Paula Ferreira",
+  "cpf": "321.654.987-00",
+  "phone": "+5511911112222",
+  "email": "ana.ferreira@email.com",
+  "date_of_birth": "1990-03-15",
+  "health_plan": "SulAmérica",
+  "whatsapp_opt_out": false,
+  "created_at": "2024-06-01T10:22:00Z",
+  "updated_at": "2025-01-20T15:30:00Z"
+}
+```

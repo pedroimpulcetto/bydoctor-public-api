@@ -1,0 +1,129 @@
+---
+title: "ByDoctor Webhook Delivery Retries and Failure Handling"
+sidebarTitle: "Retries"
+description: "Understand how ByDoctor retries failed webhook deliveries, how to handle idempotency, and best practices for building a resilient webhook endpoint."
+---
+
+Reliable webhook delivery requires cooperation between ByDoctor and your server. ByDoctor guarantees at-least-once delivery by retrying failed attempts automatically, but your endpoint needs to be designed to handle those retries gracefully. This page explains the full retry lifecycle and how to build an endpoint that stays healthy under real-world conditions.
+
+## Delivery Expectations
+
+When ByDoctor sends a webhook, your endpoint must return a **2xx HTTP status code within 30 seconds**. Any response in the `200–299` range counts as a successful acknowledgement — `200 OK` and `204 No Content` are both fine.
+
+What ByDoctor considers a **failed** delivery:
+
+- A non-2xx response code (e.g., `400`, `404`, `500`, `503`)
+- No response within 30 seconds (connection timeout)
+- A network-level error (DNS failure, TLS handshake error, connection refused)
+
+What ByDoctor does **not** consider a failure:
+
+- A `2xx` response with an error message in the body — the body is ignored; only the status code matters
+- A `2xx` response that arrives after you have already begun processing the event
+
+## Retry Schedule
+
+When a delivery attempt fails, ByDoctor retries with exponential backoff. You have up to five total attempts to successfully acknowledge the event:
+
+| Attempt | Delay after previous failure | Cumulative time elapsed |
+|---|---|---|
+| 1 (initial) | — | 0 s |
+| 2 | 1 minute | ~1 min |
+| 3 | 5 minutes | ~6 min |
+| 4 | 30 minutes | ~36 min |
+| 5 | 2 hours | ~2 h 36 min |
+
+After the fifth attempt fails, the event is marked as **permanently failed** and no further retries occur. You can still view the event in your delivery logs to inspect the payload and replay it manually if needed.
+
+<Note>
+  Retry delays are approximate. ByDoctor adds a small amount of jitter to avoid thundering-herd problems when many webhooks fail at the same time.
+</Note>
+
+## Handling Idempotency
+
+Because ByDoctor retries failed deliveries, your endpoint may receive the **same event more than once**. Your handler must be idempotent — processing the same event twice should produce the same outcome as processing it once.
+
+Use the top-level `id` field on every event as your idempotency key:
+
+```javascript Node.js
+const eventId = event.id; // e.g. "evt_01HXYZ"
+
+// Check whether you have already processed this event
+const alreadyProcessed = await db.processedEvents.exists({ eventId });
+if (alreadyProcessed) {
+  return res.sendStatus(200); // acknowledge without reprocessing
+}
+
+// Process and then record
+await handleEvent(event);
+await db.processedEvents.insert({ eventId, processedAt: new Date() });
+res.sendStatus(200);
+```
+
+<Tip>
+  Store processed event IDs in a fast, durable store (Redis with TTL or a database table). A TTL of 24 hours is sufficient since all retries complete within ~3 hours of the initial attempt.
+</Tip>
+
+## Automatic Webhook Deactivation
+
+If your endpoint fails consistently, ByDoctor will automatically mark it as **inactive** after **100 consecutive failed delivery attempts**. Once inactive, ByDoctor stops sending events to that endpoint entirely.
+
+You will receive an email notification when your webhook is deactivated. To reactivate it, fix the underlying issue with your endpoint and then re-enable it:
+
+```bash cURL
+curl -X PATCH https://api.bydoctor.com.br/v1/webhooks/wh_f47ac10b \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{ "active": true }'
+```
+
+<Warning>
+  Events that fired while your webhook was inactive are not replayed automatically. Use the delivery log in the dashboard to identify missed events and reconcile your system if needed.
+</Warning>
+
+## Best Practices
+
+<Tip>
+  **Respond immediately, process asynchronously.** The single most effective thing you can do to avoid failed deliveries is to decouple acknowledgement from processing. When a request arrives, push the raw payload onto a message queue (e.g., RabbitMQ, SQS, BullMQ) or a background job, return `200 OK` instantly, and let a worker process the event at its own pace. This keeps your response time well under the 30-second limit even if your database is slow or a downstream API is unavailable.
+</Tip>
+
+```javascript Node.js — queue-first pattern
+app.post('/webhooks/bydoctor', express.raw({ type: 'application/json' }), async (req, res) => {
+  // 1. Verify signature first (fast, in-process)
+  if (!verifyWebhookSignature(req.body, req.headers['x-bydoctor-signature'], process.env.BYDOCTOR_WEBHOOK_SECRET)) {
+    return res.status(401).send('Invalid signature');
+  }
+
+  // 2. Enqueue the raw payload for background processing
+  await queue.add('bydoctor-webhook', { payload: req.body.toString() });
+
+  // 3. Acknowledge immediately
+  res.sendStatus(200);
+});
+```
+
+Additional best practices:
+
+- **Set a generous server-side timeout** on your route. Ensure your framework's request timeout is longer than 30 seconds so ByDoctor's retry does not race against your own timeout.
+- **Return meaningful non-2xx codes during maintenance.** If you know your endpoint is temporarily down, return `503 Service Unavailable` so the retry logs are clearly distinguishable from unexpected errors.
+- **Monitor your error rate.** A spike in failed deliveries usually indicates a deployment issue or a change in your server configuration, not a ByDoctor problem.
+- **Do not block on third-party APIs.** Calling a slow external service (e.g., a payment gateway or email provider) synchronously inside your webhook handler is the most common cause of timeouts.
+
+## Monitoring Delivery Logs
+
+You can inspect the full history of webhook deliveries — including request headers, response codes, response bodies, and timestamps for each attempt — in the ByDoctor dashboard:
+
+**Settings → Webhooks → [select your webhook] → Delivery Logs**
+
+Each log entry shows:
+
+| Column | Description |
+|---|---|
+| Event ID | The unique `id` of the event (matches the payload `id` field) |
+| Event type | e.g., `appointment.created` |
+| Status | `delivered`, `pending`, or `failed` |
+| Attempts | Number of delivery attempts made so far |
+| Last attempt | Timestamp of the most recent attempt |
+| Response code | The HTTP status your server returned |
+
+Use the **Resend** button next to any failed event to manually trigger a new delivery attempt at any time.

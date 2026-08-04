@@ -1,0 +1,171 @@
+---
+title: "Verify ByDoctor Webhook Signatures for Security"
+sidebarTitle: "Security"
+description: "Use HMAC-SHA256 signature verification to confirm every webhook delivery is genuinely from ByDoctor and has not been tampered with in transit."
+---
+
+Anyone who knows your webhook URL could send a forged POST request that looks like a real ByDoctor event. Without signature verification, your application might process fraudulent payloads — cancelling real appointments, crediting fake payments, or leaking patient data. Verifying the signature on every delivery is the single most important security step in your webhook integration.
+
+## The Signature Header
+
+Every delivery from ByDoctor includes the following HTTP header:
+
+```
+X-ByDoctor-Signature: sha256=3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c
+```
+
+The value is always prefixed with `sha256=` followed by a lowercase hex-encoded HMAC-SHA256 digest. The digest is computed over the **raw request body** using the webhook secret you received when you registered the endpoint.
+
+## How to Verify Incoming Signatures
+
+<Steps>
+  <Step title="Capture the raw request body before parsing">
+    You must compute the HMAC over the **exact bytes** that arrived over the wire. If you parse the JSON first and then re-serialize it, whitespace or key ordering differences can cause the digest to mismatch. In most frameworks, this means reading the raw body buffer before it reaches your JSON middleware.
+  </Step>
+
+  <Step title="Retrieve your webhook secret">
+    Load the webhook secret you stored when you registered the endpoint — the value that started with `whsec_`. Never hardcode it in your source code; read it from an environment variable or secrets manager.
+  </Step>
+
+  <Step title="Compute HMAC-SHA256 of the raw body">
+    Using your secret as the key and the raw body bytes as the message, compute an HMAC-SHA256 digest and hex-encode it. Prepend `sha256=` to match the header format.
+  </Step>
+
+  <Step title="Compare using a constant-time equality check">
+    Compare the computed value against the `X-ByDoctor-Signature` header value using a **constant-time** string comparison function. If the two values match, the payload is authentic. If they do not match, reject the request with a `400` or `401` status and do not process it.
+
+    <Warning>
+      Never use a regular equality operator (`==`, `===`, `eq`) for this comparison. Standard string comparison short-circuits on the first differing byte, leaking timing information that an attacker can use to forge signatures incrementally. Always use a constant-time function such as `crypto.timingSafeEqual` (Node.js), `hmac.compare_digest` (Python), or `hash_equals` (PHP).
+    </Warning>
+  </Step>
+</Steps>
+
+## Code Examples
+
+<CodeGroup>
+```javascript Node.js
+const crypto = require('crypto');
+
+function verifyWebhookSignature(rawBody, signature, secret) {
+  const expectedSig = 'sha256=' + crypto
+    .createHmac('sha256', secret)
+    .update(rawBody)
+    .digest('hex');
+
+  // Both buffers must be the same length for timingSafeEqual
+  if (signature.length !== expectedSig.length) {
+    return false;
+  }
+
+  return crypto.timingSafeEqual(
+    Buffer.from(signature),
+    Buffer.from(expectedSig)
+  );
+}
+
+// Express usage — ensure express.raw() runs before express.json() on this route
+app.post('/webhooks/bydoctor', express.raw({ type: 'application/json' }), (req, res) => {
+  const signature = req.headers['x-bydoctor-signature'];
+  const secret = process.env.BYDOCTOR_WEBHOOK_SECRET;
+
+  if (!verifyWebhookSignature(req.body, signature, secret)) {
+    return res.status(401).send('Invalid signature');
+  }
+
+  const event = JSON.parse(req.body);
+  // handle event...
+  res.sendStatus(200);
+});
+```
+
+```python Python
+import hmac
+import hashlib
+from flask import Flask, request, abort
+
+app = Flask(__name__)
+
+def verify_webhook_signature(raw_body: bytes, signature: str, secret: str) -> bool:
+    expected = 'sha256=' + hmac.new(
+        secret.encode(),
+        raw_body,
+        hashlib.sha256
+    ).hexdigest()
+    return hmac.compare_digest(signature, expected)
+
+@app.route('/webhooks/bydoctor', methods=['POST'])
+def webhook():
+    signature = request.headers.get('X-ByDoctor-Signature', '')
+    secret = os.environ['BYDOCTOR_WEBHOOK_SECRET']
+
+    if not verify_webhook_signature(request.get_data(), signature, secret):
+        abort(401)
+
+    event = request.get_json()
+    # handle event...
+    return '', 200
+```
+
+```php PHP
+<?php
+
+function verify_webhook_signature(string $rawBody, string $signature, string $secret): bool {
+    $expected = 'sha256=' . hash_hmac('sha256', $rawBody, $secret);
+    return hash_equals($expected, $signature);
+}
+
+$rawBody  = file_get_contents('php://input');
+$signature = $_SERVER['HTTP_X_BYDOCTOR_SIGNATURE'] ?? '';
+$secret   = getenv('BYDOCTOR_WEBHOOK_SECRET');
+
+if (!verify_webhook_signature($rawBody, $signature, $secret)) {
+    http_response_code(401);
+    exit('Invalid signature');
+}
+
+$event = json_decode($rawBody, true);
+// handle $event...
+http_response_code(200);
+```
+</CodeGroup>
+
+## Replay Attack Protection
+
+A valid signature only proves the payload came from ByDoctor — it does not prove the payload is fresh. An attacker who intercepts a legitimate delivery could replay it minutes or hours later.
+
+To guard against replays, check the `created_at` timestamp inside the event envelope and **reject any event older than 5 minutes**:
+
+```javascript Node.js
+const event = JSON.parse(rawBody);
+const eventAge = Date.now() - new Date(event.created_at).getTime();
+const FIVE_MINUTES_MS = 5 * 60 * 1000;
+
+if (eventAge > FIVE_MINUTES_MS) {
+  return res.status(400).send('Event timestamp too old');
+}
+```
+
+<Note>
+  Make sure your server clock is synchronized via NTP. A significant clock skew between your server and ByDoctor's servers can cause legitimate events to be incorrectly rejected.
+</Note>
+
+## Rotating Your Webhook Secret
+
+If your secret is ever compromised, you should rotate it immediately. ByDoctor does not offer in-place secret rotation — to get a new secret, delete the existing webhook and create a new one:
+
+```bash cURL
+# Step 1 — delete the compromised webhook
+curl -X DELETE https://api.bydoctor.com.br/v1/webhooks/wh_f47ac10b \
+  -H "Authorization: Bearer YOUR_API_KEY"
+
+# Step 2 — create a new webhook (a fresh secret is returned)
+curl -X POST https://api.bydoctor.com.br/v1/webhooks \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "url": "https://yourapp.com/webhooks/bydoctor",
+    "events": ["appointment.created", "appointment.cancelled", "payment.paid"]
+  }'
+```
+
+Update your environment variables with the new secret before deleting the old webhook to avoid dropping events during the transition.

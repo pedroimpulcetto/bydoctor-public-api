@@ -1,0 +1,186 @@
+---
+title: "Create Appointment — POST /appointments"
+sidebarTitle: "Create"
+description: "POST /appointments — create a new appointment for a patient with a professional. Optionally send a WhatsApp confirmation."
+---
+
+The Create Appointment endpoint lets you book a new appointment slot for a patient with a specific professional at your clinic. You must supply the patient and professional UUIDs, the start and end times in UTC, and optionally the appointment type and internal notes. By default, ByDoctor sends a WhatsApp confirmation to the patient immediately after the appointment is created — set `notify_patient` to `false` if you want to suppress this notification.
+
+## Request
+
+**POST** `https://api.bydoctor.com.br/v1/appointments`
+
+**Content-Type:** `application/json`
+
+<ParamField body="patient_id" type="string" required>
+  The UUID of an existing patient in your clinic. You can find patient UUIDs via the Patients API.
+</ParamField>
+
+<ParamField body="professional_id" type="string" required>
+  The UUID of the professional who will conduct the appointment.
+</ParamField>
+
+<ParamField body="starts_at" type="string" required>
+  The appointment start time as an ISO 8601 UTC timestamp. Example: `2025-07-15T14:00:00Z`.
+</ParamField>
+
+<ParamField body="ends_at" type="string" required>
+  The appointment end time as an ISO 8601 UTC timestamp. Must be strictly after `starts_at`.
+</ParamField>
+
+<ParamField body="type" type="string" default="presencial">
+  The appointment modality. Accepted values: `presencial` (in-person) or `teleconsulta` (video call). When `teleconsulta` is set, a `teleconsult_url` is automatically generated and returned in the response.
+</ParamField>
+
+<ParamField body="notes" type="string">
+  Free-text internal notes visible to clinic staff. Not shared with the patient.
+</ParamField>
+
+<ParamField body="notify_patient" type="boolean" default={true}>
+  When `true`, ByDoctor sends a WhatsApp confirmation message to the patient's registered phone number immediately after the appointment is created. This field is write-only and is not returned in responses.
+</ParamField>
+
+## Response Fields
+
+<ResponseField name="id" type="string">
+  Unique identifier for the newly created appointment (UUID).
+</ResponseField>
+
+<ResponseField name="clinic_id" type="string">
+  The ID of the clinic that owns this appointment.
+</ResponseField>
+
+<ResponseField name="patient_id" type="string">
+  The ID of the patient linked to this appointment.
+</ResponseField>
+
+<ResponseField name="professional_id" type="string">
+  The ID of the professional assigned to this appointment.
+</ResponseField>
+
+<ResponseField name="starts_at" type="string">
+  Appointment start time in ISO 8601 UTC format.
+</ResponseField>
+
+<ResponseField name="ends_at" type="string">
+  Appointment end time in ISO 8601 UTC format.
+</ResponseField>
+
+<ResponseField name="type" type="string">
+  Appointment type: `presencial` or `teleconsulta`.
+</ResponseField>
+
+<ResponseField name="status" type="string">
+  Initial status of the appointment. Always `scheduled` on creation.
+</ResponseField>
+
+<ResponseField name="notes" type="string">
+  Internal notes attached to the appointment. `null` if not provided.
+</ResponseField>
+
+<ResponseField name="payment_status" type="string">
+  Initial payment status. Always `pending` on creation.
+</ResponseField>
+
+<ResponseField name="teleconsult_url" type="string">
+  Auto-generated video room URL. Present only when `type` is `teleconsulta`. `null` for `presencial` appointments.
+</ResponseField>
+
+<ResponseField name="created_at" type="string">
+  Timestamp when the appointment was created (ISO 8601 UTC).
+</ResponseField>
+
+<ResponseField name="updated_at" type="string">
+  Timestamp of the last update. Equal to `created_at` on a fresh record.
+</ResponseField>
+
+<Note>
+  If the requested time slot is already occupied by another appointment for the same professional, the API returns a **409 Conflict** error. Fetch the professional's schedule first to identify available windows before attempting to create.
+</Note>
+
+## Example Request
+
+```bash
+curl --request POST \
+  --url "https://api.bydoctor.com.br/v1/appointments" \
+  --header "Authorization: Bearer YOUR_API_KEY" \
+  --header "Content-Type: application/json" \
+  --header "Accept: application/json" \
+  --data '{
+    "patient_id": "pat_01HX5678EFGH",
+    "professional_id": "pro_01HX9012IJKL",
+    "starts_at": "2025-07-15T14:00:00Z",
+    "ends_at": "2025-07-15T14:30:00Z",
+    "type": "teleconsulta",
+    "notes": "Patient requested video call due to travel.",
+    "notify_patient": true
+  }'
+```
+
+## Example Response (201 Created)
+
+```json
+{
+  "id": "c3d4e5f6-a7b8-9012-cdef-123456789012",
+  "clinic_id": "clinic_01HX1234ABCD",
+  "patient_id": "pat_01HX5678EFGH",
+  "professional_id": "pro_01HX9012IJKL",
+  "starts_at": "2025-07-15T14:00:00Z",
+  "ends_at": "2025-07-15T14:30:00Z",
+  "type": "teleconsulta",
+  "status": "scheduled",
+  "notes": "Patient requested video call due to travel.",
+  "payment_status": "pending",
+  "teleconsult_url": "https://meet.bydoctor.com.br/room/c3d4e5f6",
+  "created_at": "2025-07-01T10:15:30Z",
+  "updated_at": "2025-07-01T10:15:30Z"
+}
+```
+
+## Error Responses
+
+**400 Bad Request** — One or more required fields are missing or malformed.
+
+```json
+{
+  "error": {
+    "code": "validation_error",
+    "message": "The field 'starts_at' is required and must be a valid ISO 8601 timestamp.",
+    "field": "starts_at"
+  }
+}
+```
+
+**401 Unauthorized** — Your API key is missing or invalid.
+
+```json
+{
+  "error": {
+    "code": "unauthorized",
+    "message": "Invalid or missing API key. Provide a valid Bearer token in the Authorization header."
+  }
+}
+```
+
+**404 Not Found** — The specified patient or professional does not exist in your clinic.
+
+```json
+{
+  "error": {
+    "code": "not_found",
+    "message": "No patient found with id 'pat_01HX5678EFGH' in your clinic."
+  }
+}
+```
+
+**409 Conflict** — The professional already has an appointment overlapping the requested time slot.
+
+```json
+{
+  "error": {
+    "code": "time_slot_conflict",
+    "message": "Professional 'pro_01HX9012IJKL' already has an appointment between 2025-07-15T14:00:00Z and 2025-07-15T14:30:00Z.",
+    "conflicting_appointment_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+  }
+}
+```

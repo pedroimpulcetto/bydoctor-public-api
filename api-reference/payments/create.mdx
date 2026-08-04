@@ -1,0 +1,136 @@
+---
+title: "Record a Payment — POST /payments"
+sidebarTitle: "Record"
+description: "POST /payments — record a payment for an appointment. Supports cash, card, PIX, and health plan methods."
+---
+
+The Record a Payment endpoint lets you attach a payment entry to an existing appointment. You can record the full amount in a single call or make multiple calls against the same appointment to track partial payments — for example, when a patient splits their balance across two visits or payment methods.
+
+## Endpoint
+
+```
+POST https://api.bydoctor.com.br/v1/payments
+```
+
+## Authentication
+
+Include your API key as a Bearer token in the `Authorization` header of every request.
+
+```
+Authorization: Bearer YOUR_API_KEY
+```
+
+## Request Body Parameters
+
+<ParamField body="appointment_id" type="string" required>
+  UUID of the appointment you are recording this payment against. The appointment must exist in your clinic.
+</ParamField>
+
+<ParamField body="amount" type="integer" required>
+  Payment amount in centavos (BRL). For example, pass `15000` to record R$ 150,00. Must be a positive integer greater than zero.
+</ParamField>
+
+<ParamField body="method" type="string" required>
+  Payment method used. Accepted values: `cash`, `credit_card`, `debit_card`, `pix`, `health_plan`.
+</ParamField>
+
+<ParamField body="bank_account_id" type="string">
+  UUID of the destination bank account where this payment should be credited. Optional — omit if your clinic does not track per-account allocation.
+</ParamField>
+
+<ParamField body="notes" type="string">
+  Free-text notes to attach to this payment record. Useful for recording reference numbers, authorization codes, or any other context.
+</ParamField>
+
+<Note>
+  Always pass `amount` as an **integer in centavos** — never as a float or a formatted string. Passing `150.00` or `"150,00"` will return a `400` error. The correct value for R$ 150,00 is `15000`.
+</Note>
+
+## Response Fields
+
+A successful request returns HTTP `201 Created` with the newly created payment object.
+
+<ResponseField name="id" type="string">
+  Unique identifier for the payment (UUID).
+</ResponseField>
+
+<ResponseField name="clinic_id" type="string">
+  Identifier of the clinic that owns this payment record.
+</ResponseField>
+
+<ResponseField name="appointment_id" type="string">
+  UUID of the appointment this payment is linked to.
+</ResponseField>
+
+<ResponseField name="amount" type="integer">
+  Payment amount in centavos (BRL).
+</ResponseField>
+
+<ResponseField name="method" type="string">
+  Payment method recorded. One of: `cash`, `credit_card`, `debit_card`, `pix`, `health_plan`.
+</ResponseField>
+
+<ResponseField name="bank_account_id" type="string">
+  UUID of the destination bank account, or `null` if not provided.
+</ResponseField>
+
+<ResponseField name="status" type="string">
+  Initial status of the payment. Newly created payments start as `pending`. Transitions to `paid` or `cancelled` happen either via update calls or downstream webhooks.
+</ResponseField>
+
+<ResponseField name="notes" type="string">
+  Notes attached to the payment record, or `null` if none were provided.
+</ResponseField>
+
+<ResponseField name="created_at" type="string">
+  ISO 8601 UTC timestamp of when the payment was created.
+</ResponseField>
+
+<ResponseField name="updated_at" type="string">
+  ISO 8601 UTC timestamp of the most recent update. Equal to `created_at` on a newly created record.
+</ResponseField>
+
+<Tip>
+  You can call `POST /payments` multiple times for the same `appointment_id` to record **partial payments**. Each call creates an independent payment entry, so you can accurately reflect a patient paying part of their balance in cash and the remainder via PIX, for example. Use `GET /payments?appointment_id={id}` to retrieve the full payment history for a given appointment.
+</Tip>
+
+## Error Responses
+
+| Status | Code | Description |
+|--------|------|-------------|
+| `400`  | `invalid_amount` | `amount` is missing, zero, negative, or not an integer. |
+| `400`  | `invalid_method` | `method` is missing or not one of the accepted values. |
+| `404`  | `appointment_not_found` | No appointment with the given `appointment_id` exists in your clinic. |
+
+## Example Request
+
+```bash
+curl --request POST \
+  --url "https://api.bydoctor.com.br/v1/payments" \
+  --header "Authorization: Bearer YOUR_API_KEY" \
+  --header "Content-Type: application/json" \
+  --data '{
+    "appointment_id": "appt_01HABC",
+    "amount": 25000,
+    "method": "pix",
+    "bank_account_id": "ba_01HBANK1",
+    "notes": "Patient paid via PIX transfer — ref #TX98765"
+  }'
+```
+
+## Example Response
+
+```json
+{
+  "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "clinic_id": "clinic_01HXYZ",
+  "appointment_id": "appt_01HABC",
+  "amount": 25000,
+  "method": "pix",
+  "bank_account_id": "ba_01HBANK1",
+  "status": "pending",
+  "notes": "Patient paid via PIX transfer — ref #TX98765",
+  "created_at": "2024-06-03T14:22:10Z",
+  "updated_at": "2024-06-03T14:22:10Z"
+}
+```

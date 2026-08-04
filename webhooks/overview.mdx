@@ -1,0 +1,151 @@
+---
+title: "Receive Real-Time Events with ByDoctor Webhooks"
+sidebarTitle: "Overview"
+description: "Learn how ByDoctor webhooks push real-time event notifications directly to your server so you can react instantly without polling the API."
+---
+
+Webhooks let ByDoctor notify your application the moment something important happens in a clinic — a new appointment is booked, a patient is created, or a payment is confirmed. Instead of repeatedly asking the API whether anything has changed, your server receives an HTTP POST request the instant the event occurs.
+
+## What Are Webhooks?
+
+Traditional API integrations rely on **polling**: your code calls the API on a schedule and checks for changes. Polling is simple but wasteful — most requests return nothing new, and you still miss events that fall between checks.
+
+Webhooks flip this model. ByDoctor acts as the caller and sends a payload directly to a URL you control. Your server processes the data in real time and responds. This approach is faster, cheaper on request volume, and far more reliable for event-driven workflows like sending confirmation messages, updating a local database, or triggering downstream automation.
+
+## How ByDoctor Webhooks Work
+
+Every webhook delivery is a standard **HTTP POST** request to your registered URL. The request body is a JSON object describing the event — what happened, when, and which clinic it belongs to. Every request also carries a `X-ByDoctor-Signature` header so you can verify the payload came from ByDoctor and was not tampered with in transit.
+
+Here is what a typical delivery looks like:
+
+```http
+POST /webhooks/bydoctor HTTP/1.1
+Host: yourapp.com
+Content-Type: application/json
+X-ByDoctor-Signature: sha256=3b4c5d6e7f...
+
+{
+  "id": "evt_01HXYZ",
+  "event": "appointment.created",
+  "created_at": "2025-01-15T14:30:00Z",
+  "clinic_id": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+  "data": { ... }
+}
+```
+
+Your server must respond with any **2xx status code within 30 seconds**. If it does not, ByDoctor retries the delivery automatically — see [Retries](/webhooks/retries) for the full schedule.
+
+## Webhooks vs. Polling the API
+
+Use the right tool for the job:
+
+| Scenario | Recommended approach |
+|---|---|
+| React immediately when an appointment is created | **Webhook** |
+| Display live data in a dashboard on demand | **Poll the API** |
+| Trigger a WhatsApp message when payment is confirmed | **Webhook** |
+| Bulk-export all appointments for a date range | **Poll the API** |
+| Sync patient records to an external system | **Webhook** |
+| Build a reporting query with custom filters | **Poll the API** |
+
+<Note>
+  Webhook events are scoped to the clinic associated with the API key you use to register the endpoint. An API key issued for Clinic A will never receive events from Clinic B.
+</Note>
+
+## Register a Webhook Endpoint
+
+<Steps>
+  <Step title="Create a publicly reachable HTTPS endpoint on your server">
+    Your URL must use **HTTPS**. ByDoctor will not deliver events to plain HTTP endpoints. The endpoint should be dedicated to receiving webhook payloads — a route like `/webhooks/bydoctor` works well.
+
+    For local development, use a tunneling tool like [ngrok](https://ngrok.com) to expose your local server:
+
+    ```bash
+    ngrok http 3000
+    # Forwarding: https://a1b2-203-0-113-42.ngrok-free.app -> http://localhost:3000
+    ```
+
+    Use the `https://` ngrok URL as your endpoint during testing.
+  </Step>
+
+  <Step title="Register the endpoint with POST /webhooks">
+    Send a `POST` request to `/webhooks` with the URL you want to receive events and the list of event types you want to subscribe to:
+
+    ```bash cURL
+    curl -X POST https://api.bydoctor.com.br/v1/webhooks \
+      -H "Authorization: Bearer YOUR_API_KEY" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "url": "https://yourapp.com/webhooks/bydoctor",
+        "events": [
+          "appointment.created",
+          "appointment.cancelled",
+          "payment.paid"
+        ]
+      }'
+    ```
+
+    ByDoctor responds with a `201 Created` and the full webhook object, including a one-time secret:
+
+    <CodeGroup>
+      ```json Request
+      {
+        "url": "https://yourapp.com/webhooks/bydoctor",
+        "events": [
+          "appointment.created",
+          "appointment.cancelled",
+          "payment.paid"
+        ]
+      }
+      ```
+
+      ```json Response 201
+      {
+        "id": "wh_f47ac10b",
+        "url": "https://yourapp.com/webhooks/bydoctor",
+        "events": [
+          "appointment.created",
+          "appointment.cancelled",
+          "payment.paid"
+        ],
+        "secret": "whsec_a1b2c3d4e5f6...",
+        "active": true,
+        "created_at": "2025-01-15T14:00:00Z"
+      }
+      ```
+    </CodeGroup>
+  </Step>
+
+  <Step title="Store the returned secret securely">
+    Copy the `secret` value from the response and store it in your application's environment variables or secrets manager.
+
+    <Warning>
+      The `secret` is shown **only once** at registration time. ByDoctor never returns it again. If you lose it, you must delete the webhook and create a new one to obtain a fresh secret.
+    </Warning>
+  </Step>
+
+  <Step title="Verify incoming signatures">
+    Every delivery includes a `X-ByDoctor-Signature` header. Always verify this signature before trusting or processing the payload. See [Webhook Security](/webhooks/security) for step-by-step instructions and code examples in Node.js, Python, and PHP.
+  </Step>
+
+  <Step title="Respond with 2xx within 30 seconds">
+    Your handler must return a 2xx status code (typically `200 OK`) within **30 seconds** of receiving the request. If ByDoctor does not receive a 2xx response in time, it treats the delivery as failed and will retry.
+
+    <Tip>
+      To stay well within the time limit, acknowledge the request immediately by returning `200 OK` and then process the event asynchronously — push the payload onto a queue or background job and handle the business logic separately.
+    </Tip>
+  </Step>
+</Steps>
+
+## Subscribing to All Events
+
+To receive every event type, pass `"*"` in the `events` array:
+
+```json
+{
+  "url": "https://yourapp.com/webhooks/bydoctor",
+  "events": ["*"]
+}
+```
+
+You can update your event subscriptions at any time with `PATCH /webhooks/{id}` without needing to re-register.

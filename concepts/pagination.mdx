@@ -1,0 +1,163 @@
+---
+title: "Paginate ByDoctor API List Responses Efficiently"
+sidebarTitle: "Pagination"
+description: "Learn how cursor-based pagination works across all ByDoctor list endpoints, including query parameters, response envelopes, and filtering options."
+---
+
+All list endpoints in the ByDoctor API return paginated responses. Rather than using traditional page-number pagination, the API uses **cursor-based pagination** — a technique that is more reliable and performant when working with large or frequently-updated datasets. Instead of asking for "page 3", you ask for "the next batch after this specific record", which prevents duplicate or missing items if the underlying data changes between requests.
+
+## Query Parameters
+
+Every list endpoint accepts the following pagination query parameters:
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `limit` | integer | `20` | Number of records to return per page. Minimum `1`, maximum `100`. |
+| `cursor` | string | — | An opaque cursor string returned by the previous response. Omit this parameter to fetch the first page. |
+
+<Tip>
+  Set `limit` to the largest value your use case can process at once (up to `100`) to minimize the number of round trips when fetching large datasets.
+</Tip>
+
+## Response Envelope
+
+Every list response wraps results in a consistent JSON envelope:
+
+```json
+{
+  "data": [
+    {
+      "id": "c3d4e5f6-3456-789a-cdef-012345678901",
+      "patient_id": "b2c3d4e5-2345-6789-bcde-f01234567890",
+      "starts_at": "2025-07-10T14:00:00Z"
+    }
+  ],
+  "meta": {
+    "total": 143,
+    "has_more": true,
+    "next_cursor": "eyJpZCI6ImY0N2FjMTBiIn0"
+  }
+}
+```
+
+The `meta` object contains the fields you need to drive pagination logic:
+
+| Field | Type | Description |
+|---|---|---|
+| `data` | array | The list of resource objects for the current page. |
+| `meta.total` | integer | Total number of records matching your query across all pages. |
+| `meta.has_more` | boolean | `true` if there are additional pages after this one. `false` on the last page. |
+| `meta.next_cursor` | string or null | Pass this value as the `cursor` parameter in your next request. `null` when `has_more` is `false`. |
+
+<Note>
+  Cursor strings are **opaque** — they are base64-encoded and their internal structure may change. Treat them as black-box tokens and never attempt to construct or decode them manually.
+</Note>
+
+## Iterating Through All Pages
+
+To retrieve all records from a list endpoint, keep making requests using the `next_cursor` from the previous response until `has_more` is `false`. The following JavaScript example demonstrates this pattern for fetching all appointments:
+
+```javascript
+async function fetchAllAppointments(apiKey) {
+  const baseUrl = "https://api.bydoctor.com.br/v1/appointments";
+  const headers = { Authorization: `Bearer ${apiKey}` };
+
+  let allAppointments = [];
+  let cursor = null;
+  let hasMore = true;
+
+  while (hasMore) {
+    const params = new URLSearchParams({ limit: "100" });
+    if (cursor) {
+      params.set("cursor", cursor);
+    }
+
+    const response = await fetch(`${baseUrl}?${params}`, { headers });
+
+    if (!response.ok) {
+      throw new Error(`Request failed: ${response.status}`);
+    }
+
+    const { data, meta } = await response.json();
+
+    allAppointments = allAppointments.concat(data);
+    hasMore = meta.has_more;
+    cursor = meta.next_cursor;
+  }
+
+  return allAppointments;
+}
+```
+
+<Warning>
+  Avoid fetching all pages simultaneously in parallel. Because cursors encode a position in the dataset at a point in time, each cursor must be obtained from the previous response. Fire requests sequentially.
+</Warning>
+
+## Filtering
+
+Most list endpoints accept additional query parameters to narrow results without changing the pagination behavior. Filters combine with `limit` and `cursor` in the same query string.
+
+<Accordion title="Appointment filters">
+
+| Parameter | Type | Description |
+|---|---|---|
+| `starts_after` | ISO 8601 string | Return only appointments that start after this timestamp (exclusive). |
+| `starts_before` | ISO 8601 string | Return only appointments that start before this timestamp (exclusive). |
+| `status` | string | Filter by appointment status: `scheduled`, `confirmed`, `cancelled`, `completed`, or `no_show`. |
+| `professional_id` | string (UUID) | Return only appointments assigned to this professional. |
+| `patient_id` | string (UUID) | Return only appointments for this patient. |
+| `type` | string | Filter by modality: `presencial` or `teleconsulta`. |
+
+**Example — fetch confirmed appointments for a specific professional this week:**
+
+```
+GET /v1/appointments
+  ?professional_id=a1b2c3d4-1234-5678-abcd-ef0123456789
+  &status=confirmed
+  &starts_after=2025-07-07T00:00:00Z
+  &starts_before=2025-07-14T00:00:00Z
+  &limit=50
+```
+
+</Accordion>
+
+<Accordion title="Patient filters">
+
+| Parameter | Type | Description |
+|---|---|---|
+| `search` | string | Full-text search across patient `name`, `cpf`, and `email`. |
+| `health_plan` | string | Filter by health plan name (exact match). |
+| `created_after` | ISO 8601 string | Return patients created after this timestamp. |
+
+</Accordion>
+
+<Accordion title="Payment filters">
+
+| Parameter | Type | Description |
+|---|---|---|
+| `status` | string | Filter by payment status: `pending`, `paid`, or `cancelled`. |
+| `method` | string | Filter by payment method (e.g. `pix`, `credit_card`). |
+| `appointment_id` | string (UUID) | Return payments linked to a specific appointment. |
+
+</Accordion>
+
+## Sorting
+
+The default sort order for all list endpoints is `created_at DESC` — newest records first.
+
+For the `/v1/appointments` endpoint you can override sorting using the `sort` and `order` parameters:
+
+| Parameter | Accepted values | Description |
+|---|---|---|
+| `sort` | `created_at`, `starts_at` | Field to sort results by. Default: `created_at`. |
+| `order` | `asc`, `desc` | Sort direction. Default: `desc`. |
+
+**Example — fetch upcoming appointments in chronological order:**
+
+```
+GET /v1/appointments?sort=starts_at&order=asc&starts_after=2025-07-10T00:00:00Z
+```
+
+<Note>
+  Cursors are tied to the sort order used when they were generated. If you change the `sort` or `order` parameters mid-pagination, you must restart from the first page (omit the `cursor` parameter).
+</Note>

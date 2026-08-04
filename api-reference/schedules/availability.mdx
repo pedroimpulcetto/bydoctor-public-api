@@ -1,0 +1,124 @@
+---
+title: "Check Appointment Availability — GET /schedules/availability"
+sidebarTitle: "Availability"
+description: "GET /schedules/availability — fetch open time slots for a professional on a specific date. Use before booking."
+---
+
+The **Check Appointment Availability** endpoint returns every possible appointment slot for a given professional on a specific date, indicating whether each slot is open or already taken. Slots are calculated from the professional's configured working hours and filtered against existing bookings, blocked time, and holidays — so what you receive is an accurate, real-time picture of what can be offered to a patient.
+
+## Endpoint
+
+```
+GET https://api.bydoctor.com.br/v1/schedules/availability
+```
+
+## Authentication
+
+```
+Authorization: Bearer YOUR_API_KEY
+```
+
+## Query Parameters
+
+<ParamField query="professional_id" type="string" required>
+  UUID of the professional whose availability you want to check. You can find this value in the `professional_id` field returned by [`GET /schedules`](/api-reference/schedules/list).
+</ParamField>
+
+<ParamField query="date" type="string" required>
+  The date to query in `YYYY-MM-DD` format, interpreted in the professional's configured `timezone` (e.g. `America/Sao_Paulo`). For example, `2025-02-10`.
+</ParamField>
+
+<ParamField query="duration" type="integer">
+  Desired slot duration in minutes. When omitted, the professional's default `appointment_duration` is used. Supplying a custom value lets you query availability for longer or shorter appointment types without changing the professional's default settings.
+</ParamField>
+
+## Response Fields
+
+<ResponseField name="date" type="string" required>
+  The queried date echoed back in `YYYY-MM-DD` format.
+</ResponseField>
+
+<ResponseField name="professional_id" type="string" required>
+  UUID of the professional whose availability is represented.
+</ResponseField>
+
+<ResponseField name="slots" type="array" required>
+  Ordered array of time slot objects covering the professional's full working window for the given date.
+
+  <ResponseField name="slots[].starts_at" type="string" required>
+    ISO 8601 UTC timestamp for the beginning of the slot, e.g. `2025-02-10T11:00:00Z`.
+  </ResponseField>
+
+  <ResponseField name="slots[].ends_at" type="string" required>
+    ISO 8601 UTC timestamp for the end of the slot, e.g. `2025-02-10T11:30:00Z`.
+  </ResponseField>
+
+  <ResponseField name="slots[].available" type="boolean" required>
+    `true` if the slot is open and can be booked. `false` if the slot is already occupied by a booking or blocked by the professional.
+  </ResponseField>
+</ResponseField>
+
+<Tip>
+  Always call this endpoint before creating an appointment via `POST /appointments`. Even if a slot appears available in your UI, another booking may have been made in the milliseconds since you last polled. If you attempt to book an unavailable slot, the Appointments API returns a `409 Conflict` — checking availability first lets you surface a friendly message to the patient and offer alternatives without an extra round-trip.
+</Tip>
+
+## Example Request
+
+```bash
+curl --request GET \
+  --url "https://api.bydoctor.com.br/v1/schedules/availability?professional_id=e5f6a7b8-c9d0-1234-efab-345678901234&date=2025-02-10" \
+  --header "Authorization: Bearer YOUR_API_KEY"
+```
+
+## Example Response
+
+```json
+{
+  "date": "2025-02-10",
+  "professional_id": "e5f6a7b8-c9d0-1234-efab-345678901234",
+  "slots": [
+    {
+      "starts_at": "2025-02-10T11:00:00Z",
+      "ends_at": "2025-02-10T11:30:00Z",
+      "available": true
+    },
+    {
+      "starts_at": "2025-02-10T11:30:00Z",
+      "ends_at": "2025-02-10T12:00:00Z",
+      "available": false
+    },
+    {
+      "starts_at": "2025-02-10T12:00:00Z",
+      "ends_at": "2025-02-10T12:30:00Z",
+      "available": false
+    },
+    {
+      "starts_at": "2025-02-10T12:30:00Z",
+      "ends_at": "2025-02-10T13:00:00Z",
+      "available": true
+    },
+    {
+      "starts_at": "2025-02-10T14:00:00Z",
+      "ends_at": "2025-02-10T14:30:00Z",
+      "available": true
+    },
+    {
+      "starts_at": "2025-02-10T14:30:00Z",
+      "ends_at": "2025-02-10T15:00:00Z",
+      "available": true
+    },
+    {
+      "starts_at": "2025-02-10T15:00:00Z",
+      "ends_at": "2025-02-10T15:30:00Z",
+      "available": false
+    },
+    {
+      "starts_at": "2025-02-10T15:30:00Z",
+      "ends_at": "2025-02-10T16:00:00Z",
+      "available": true
+    }
+  ]
+}
+```
+
+The example above shows **Dra. Mariana Costa's** afternoon availability on 10 February 2025 (UTC times reflect the `America/Sao_Paulo` offset of −3 h). Slots at 11:30, 12:00, and 15:00 UTC are already booked; all others are open.

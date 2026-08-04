@@ -1,0 +1,17 @@
+# Source: https://bydoctor.com.br/especialidades
+
+Software médico por especialidade
+
+# Software para médicos, feito por especialidade
+
+Prontuário eletrônico, agenda, prescrição digital e WhatsApp em um só lugar. Escolha sua especialidade para ver os detalhes pensados para a sua rotina.
+
+## Especialidades atendidas
+
+[**Software para Dermatologista**\\ \\ Fotos clínicas dentro do prontuário, anamnese estética que se reaproveita no retorno e isotretinoína prescrita pela MEMED. Um sistema, não quatro.\\ \\ Ver detalhes para dermatologista](https://bydoctor.com.br/especialidades/dermatologista) [**Software para Psiquiatra**\\ \\ Prescrição de controlados pela MEMED, agenda configurada para sessões longas e prontuário que respeita o sigilo da prática psiquiátrica.\\ \\ Ver detalhes para psiquiatra](https://bydoctor.com.br/especialidades/psiquiatra) [**Software para Pediatra**\\ \\ Cadastro do responsável, antropometria a cada consulta, vacinação no histórico e o lembrete cai no WhatsApp da mãe, não no do paciente.\\ \\ Ver detalhes para pediatra](https://bydoctor.com.br/especialidades/pediatra) [**Software para Nutricionista**\\ \\ Bioimpedância no prontuário, plano alimentar anexado ao atendimento e cobrança recorrente para pacotes de acompanhamento. Acaba a planilha do drive.\\ \\ Ver detalhes para nutricionista](https://bydoctor.com.br/especialidades/nutricionista) [**Software para Fisioterapeuta**\\ \\ Pacotes de 10 ou 20 sessões que o sistema desconta sozinho, evolução registrada a cada atendimento e agenda que cabe consulta na clínica e atendimento domiciliar no mesmo dia.\\ \\ Ver detalhes para fisioterapeuta](https://bydoctor.com.br/especialidades/fisioterapeuta) [**Software para Psicólogo**\\ \\ Notas de sessão só você acessa, agenda configurada para 50 minutos e atendimento online conforme a resolução do CFP. Recepção não lê evolução.\\ \\ Ver detalhes para psicólogo](https://bydoctor.com.br/especialidades/psicologo) [**Software para Ginecologista**\\ \\ DUM e DPP calculados no prontuário, USG e papanicolau anexados ao atendimento e prescrição hormonal pela MEMED. Pré-natal que cabe na ficha digital.\\ \\ Ver detalhes para ginecologista](https://bydoctor.com.br/especialidades/ginecologista) [**Software para Ortopedista**\\ \\ Anexe RX e RM no prontuário, emita atestado em segundos e acompanhe o pós-operatório com retornos automáticos por WhatsApp.\\ \\ Ver detalhes para ortopedista](https://bydoctor.com.br/especialidades/ortopedista) [**Software para Esteticista**\\ \\ Ficha de anamnese com fotos antes e depois dentro do prontuário, pacotes de sessão que o sistema desconta sozinho e agenda com confirmação por WhatsApp. Um sistema só, não quatro.\\ \\ Ver detalhes para esteticista](https://bydoctor.com.br/especialidades/esteticista) [**Software para Dentista**\\ \\ Agenda com confirmação por WhatsApp, prontuário com radiografia anexada, atestado e prescrição digitais e financeiro por PIX. Gestão simples do consultório por um preço fixo — sem cobrar por dentista.\\ \\ Ver detalhes para dentista](https://bydoctor.com.br/especialidades/dentista)
+
+## Teste o ByDoctor por 30 dias
+
+Plano único de R$147 por mês para a clínica inteira. Sem cobrança por profissional, sem taxa por consulta, sem custo por receita.
+
+[Criar conta grátis](https://www.app.bydoctor.com.br/auth/sign-up)

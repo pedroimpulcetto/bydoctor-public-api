@@ -1,0 +1,126 @@
+---
+title: "Get Appointment — GET /appointments/{id}"
+sidebarTitle: "Get"
+description: "GET /appointments/{id} — retrieve a single appointment by its UUID, including full patient and payment details."
+---
+
+The Get Appointment endpoint returns the complete record for a single appointment identified by its UUID. Use this endpoint when you need the full detail view of an appointment — including its current status, payment status, teleconsult URL (if applicable), and all timestamps. This is the canonical way to check whether a booking was confirmed, whether payment was received, or to retrieve the video link to share with a patient before a teleconsulta.
+
+## Request
+
+**GET** `https://api.bydoctor.com.br/v1/appointments/{id}`
+
+<ParamField path="id" type="string" required>
+  The UUID of the appointment you want to retrieve. Appointment UUIDs are returned when you create an appointment or list appointments.
+</ParamField>
+
+## Response Fields
+
+<ResponseField name="id" type="string">
+  Unique identifier for the appointment (UUID).
+</ResponseField>
+
+<ResponseField name="clinic_id" type="string">
+  The ID of the clinic that owns this appointment.
+</ResponseField>
+
+<ResponseField name="patient_id" type="string">
+  The ID of the patient linked to this appointment.
+</ResponseField>
+
+<ResponseField name="professional_id" type="string">
+  The ID of the professional assigned to this appointment.
+</ResponseField>
+
+<ResponseField name="starts_at" type="string">
+  Appointment start time in ISO 8601 UTC format.
+</ResponseField>
+
+<ResponseField name="ends_at" type="string">
+  Appointment end time in ISO 8601 UTC format.
+</ResponseField>
+
+<ResponseField name="type" type="string">
+  Appointment type: `presencial` or `teleconsulta`.
+</ResponseField>
+
+<ResponseField name="status" type="string">
+  Current lifecycle status: `scheduled`, `confirmed`, `cancelled`, `completed`, or `no_show`.
+</ResponseField>
+
+<ResponseField name="notes" type="string">
+  Internal notes attached to the appointment. `null` if none were added.
+</ResponseField>
+
+<ResponseField name="payment_status" type="string">
+  Payment status for this appointment: `pending`, `paid`, or `overdue`.
+</ResponseField>
+
+<ResponseField name="teleconsult_url" type="string">
+  The video room URL for the consultation. Only present when `type` is `teleconsulta`. `null` for `presencial` appointments.
+</ResponseField>
+
+<ResponseField name="created_at" type="string">
+  Timestamp when the appointment was originally created (ISO 8601 UTC).
+</ResponseField>
+
+<ResponseField name="updated_at" type="string">
+  Timestamp of the most recent update to this appointment (ISO 8601 UTC).
+</ResponseField>
+
+<Tip>
+  If you need to display the `teleconsult_url` to a patient, always fetch the appointment immediately before the call to ensure you have the latest URL — it can be regenerated if the room expires.
+</Tip>
+
+## Example Request
+
+```bash
+curl --request GET \
+  --url "https://api.bydoctor.com.br/v1/appointments/c3d4e5f6-a7b8-9012-cdef-123456789012" \
+  --header "Authorization: Bearer YOUR_API_KEY" \
+  --header "Accept: application/json"
+```
+
+## Example Response (200 OK)
+
+```json
+{
+  "id": "c3d4e5f6-a7b8-9012-cdef-123456789012",
+  "clinic_id": "clinic_01HX1234ABCD",
+  "patient_id": "pat_01HX5678EFGH",
+  "professional_id": "pro_01HX9012IJKL",
+  "starts_at": "2025-07-15T14:00:00Z",
+  "ends_at": "2025-07-15T14:30:00Z",
+  "type": "teleconsulta",
+  "status": "confirmed",
+  "notes": "Patient requested video call due to travel.",
+  "payment_status": "pending",
+  "teleconsult_url": "https://meet.bydoctor.com.br/room/c3d4e5f6",
+  "created_at": "2025-07-01T10:15:30Z",
+  "updated_at": "2025-07-02T08:44:00Z"
+}
+```
+
+## Error Responses
+
+**401 Unauthorized** — Your API key is missing or invalid.
+
+```json
+{
+  "error": {
+    "code": "unauthorized",
+    "message": "Invalid or missing API key. Provide a valid Bearer token in the Authorization header."
+  }
+}
+```
+
+**404 Not Found** — No appointment with the given ID exists in your clinic.
+
+```json
+{
+  "error": {
+    "code": "not_found",
+    "message": "No appointment found with id 'c3d4e5f6-a7b8-9012-cdef-123456789012'."
+  }
+}
+```

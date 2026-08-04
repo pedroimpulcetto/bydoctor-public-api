@@ -1,0 +1,75 @@
+---
+title: "ByDoctor API: Integrate Clinic Management Workflows"
+sidebarTitle: "Introduction"
+description: "Use the ByDoctor REST API and webhooks to integrate appointment scheduling, patient records, payments, and WhatsApp notifications into your applications."
+---
+
+The ByDoctor API gives you programmatic access to every core feature of the ByDoctor clinic management platform. Whether you're building a custom patient portal, syncing appointments with a third-party calendar, automating WhatsApp notifications, or generating financial reports, the API provides the building blocks to connect ByDoctor to your existing workflows.
+
+## What is the ByDoctor API?
+
+The ByDoctor API is a RESTful interface that exposes the full functionality of the ByDoctor platform over HTTPS. Every resource — from appointments and patient records to payments and webhooks — is available as a set of predictable, resource-oriented URLs. Requests and responses use standard JSON, and HTTP status codes communicate the result of each operation.
+
+In addition to synchronous REST endpoints, ByDoctor supports outbound webhooks so your application can react to real-time clinic events — such as a newly booked appointment or a completed payment — without polling.
+
+## What You Can Build
+
+<CardGroup cols={2}>
+  <Card title="Appointment Scheduling" icon="calendar">
+    Sync ByDoctor's visual calendar with external tools. Create, update, and cancel appointments programmatically, and receive real-time events whenever a booking changes.
+  </Card>
+  <Card title="Patient Records" icon="user-circle">
+    Read and write patient demographics, electronic medical records, and prescription history. Maintain a unified patient view across your product ecosystem.
+  </Card>
+  <Card title="Payments & Financials" icon="credit-card">
+    Track payments by health plan, PIX, credit card, or bank transfer. Pull financial summaries for custom reporting dashboards or accounting integrations.
+  </Card>
+  <Card title="Webhooks & Notifications" icon="bell">
+    Subscribe to clinic events and trigger WhatsApp Business API messages via Meta's official channel. Automate reminders, confirmations, and follow-ups.
+  </Card>
+</CardGroup>
+
+## API Basics
+
+The ByDoctor API is built on REST principles and adheres to the following conventions:
+
+- **Base URL** — All requests target `https://api.bydoctor.com.br/v1`. The version segment (`v1`) is part of the path, not a header.
+- **JSON everywhere** — Send request bodies as `application/json` and expect JSON in every response.
+- **HTTPS only** — Plain HTTP requests are rejected. All traffic must be encrypted in transit.
+- **HTTP methods** — Use `GET` to read resources, `POST` to create them, `PATCH` to update them, and `DELETE` to remove them.
+- **HTTP status codes** — Responses follow standard semantics: `200 OK`, `201 Created`, `204 No Content`, `400 Bad Request`, `401 Unauthorized`, `404 Not Found`, `422 Unprocessable Entity`, and `429 Too Many Requests`.
+
+## Rate Limits
+
+The API enforces per-key rate limits to ensure fair usage across all integrations. If you exceed the limit, the API returns `429 Too Many Requests`. Use the response headers to track your current usage and back off accordingly.
+
+| Limit | Value |
+|---|---|
+| Requests per minute per API key | 1,000 |
+| Burst allowance | Included in the 1,000 rpm window |
+| Rate limit header | `X-RateLimit-Remaining` |
+| Reset header | `X-RateLimit-Reset` (Unix timestamp) |
+
+<Tip>
+  If your integration regularly approaches the rate limit, consider batching writes and caching frequently read resources like professional and patient lists.
+</Tip>
+
+## Versioning
+
+The current API version is **v1**, reflected directly in the URL path (`/v1/`). ByDoctor uses URL-based versioning to make breaking changes explicit and to give you full control over when you migrate.
+
+When a new major version is released, ByDoctor will:
+
+1. Announce the new version with a migration guide.
+2. Support the previous version for a minimum of 12 months.
+3. Send deprecation notices to the contact email on your account.
+
+Non-breaking additions — new optional fields, new endpoints, and new event types — may be introduced to `v1` at any time. Design your integration to ignore unknown fields to stay forward-compatible.
+
+## Supported Regions
+
+All ByDoctor API infrastructure runs in **Brazil**. Patient data, appointment records, and financial information never leave Brazilian territory, in full alignment with the requirements of Brazil's data protection framework.
+
+<Note>
+  ByDoctor is designed for compliance with the **Lei Geral de Proteção de Dados (LGPD)** and the data handling standards set by the **Conselho Federal de Medicina (CFM)**. The platform maintains a full audit trail of every data access and modification event, which you can query through the API. If your integration writes patient data, ensure your own systems meet the same standards before processing or storing any information returned by the API.
+</Note>

@@ -1,0 +1,81 @@
+---
+title: "Delete a Webhook Endpoint — DELETE /webhooks/{id}"
+sidebarTitle: "Delete"
+description: "DELETE /webhooks/{id} — permanently remove a webhook endpoint. No further events will be delivered to that URL."
+---
+
+The Delete a Webhook Endpoint call permanently removes a registered webhook from your clinic. Once deleted, ByDoctor will stop delivering events to that URL and any queued retry attempts for that endpoint are cancelled immediately. This action cannot be undone.
+
+## Endpoint
+
+```
+DELETE https://api.bydoctor.com.br/v1/webhooks/{id}
+```
+
+## Authentication
+
+Include your API key as a Bearer token in the `Authorization` header of every request.
+
+```
+Authorization: Bearer YOUR_API_KEY
+```
+
+## Path Parameters
+
+<ParamField path="id" type="string" required>
+  UUID of the webhook endpoint you want to delete. You can find this value in the `id` field returned by `GET /webhooks` or `POST /webhooks`.
+</ParamField>
+
+## Response Fields
+
+A successful deletion returns HTTP `200 OK` with a confirmation object.
+
+<ResponseField name="id" type="string">
+  The UUID of the webhook endpoint that was deleted.
+</ResponseField>
+
+<ResponseField name="deleted" type="boolean">
+  Always `true` for a successful deletion response.
+</ResponseField>
+
+<Note>
+  Deleting a webhook does **not** affect events that have already been successfully delivered to your endpoint. However, any in-flight retry attempts for previously failed deliveries are cancelled immediately upon deletion — your endpoint will not receive those retried requests.
+</Note>
+
+## Error Responses
+
+| Status | Code | Description |
+|--------|------|-------------|
+| `401`  | `unauthorized` | Your API key is missing or invalid. |
+| `404`  | `webhook_not_found` | No webhook with the given `id` exists for your clinic. |
+
+## Example Request
+
+```bash
+curl --request DELETE \
+  --url "https://api.bydoctor.com.br/v1/webhooks/wh_c1d2e3f4-a5b6-7890-cdef-123456789abc" \
+  --header "Authorization: Bearer YOUR_API_KEY"
+```
+
+## Example Response
+
+```json
+{
+  "id": "wh_c1d2e3f4-a5b6-7890-cdef-123456789abc",
+  "deleted": true
+}
+```
+
+## Pausing Instead of Deleting
+
+If you want to temporarily stop event delivery without permanently removing the endpoint and losing its configuration, you can **pause** the webhook instead. Send a `PATCH` request with `active` set to `false`:
+
+```bash
+curl --request PATCH \
+  --url "https://api.bydoctor.com.br/v1/webhooks/wh_c1d2e3f4-a5b6-7890-cdef-123456789abc" \
+  --header "Authorization: Bearer YOUR_API_KEY" \
+  --header "Content-Type: application/json" \
+  --data '{"active": false}'
+```
+
+A paused webhook retains its URL, event subscriptions, and signing secret. You can resume delivery at any time by sending the same request with `"active": true`. Note that `PATCH /webhooks/{id}` is not listed in the main navigation as a standalone page — use the snippet above when you need it.

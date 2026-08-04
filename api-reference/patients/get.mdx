@@ -1,0 +1,104 @@
+---
+title: "Get Patient — GET /patients/{id}"
+sidebarTitle: "Get"
+description: "GET /patients/{id} — retrieve a single patient record by UUID, including contact details and health plan."
+---
+
+The **Get Patient** endpoint fetches the full record of a single patient using their unique UUID. The response includes all stored contact details, health plan information, WhatsApp consent status, and record timestamps. Use this endpoint whenever you need authoritative, up-to-date data for a specific patient before displaying their profile or booking an appointment on their behalf.
+
+## Endpoint
+
+```
+GET https://api.bydoctor.com.br/v1/patients/{id}
+```
+
+## Authentication
+
+```
+Authorization: Bearer YOUR_API_KEY
+```
+
+## Path Parameters
+
+<ParamField path="id" type="string" required>
+  The UUID of the patient you want to retrieve, e.g. `a1b2c3d4-e5f6-7890-abcd-ef1234567890`.
+</ParamField>
+
+## Response Fields (200 OK)
+
+<ResponseField name="id" type="string" required>
+  Unique identifier for the patient (UUID v4).
+</ResponseField>
+
+<ResponseField name="clinic_id" type="string" required>
+  Identifier of the clinic this patient belongs to. You can only retrieve patients belonging to clinics associated with your API key.
+</ResponseField>
+
+<ResponseField name="name" type="string" required>
+  Patient's full name.
+</ResponseField>
+
+<ResponseField name="cpf" type="string">
+  Brazilian individual taxpayer identifier in the format `123.456.789-00`, or `null` if not recorded.
+</ResponseField>
+
+<ResponseField name="phone" type="string">
+  Contact phone number in E.164 format, or `null` if not recorded.
+</ResponseField>
+
+<ResponseField name="email" type="string">
+  Patient's email address, or `null` if not recorded.
+</ResponseField>
+
+<ResponseField name="date_of_birth" type="string">
+  Date of birth in `YYYY-MM-DD` format, or `null` if not recorded.
+</ResponseField>
+
+<ResponseField name="health_plan" type="string">
+  Name of the patient's health insurance plan, or `null` if not recorded.
+</ResponseField>
+
+<ResponseField name="whatsapp_opt_out" type="boolean" required>
+  `true` if the patient has opted out of WhatsApp messages from your clinic. Always check this field before sending any WhatsApp communication.
+</ResponseField>
+
+<ResponseField name="created_at" type="string" required>
+  ISO 8601 UTC timestamp of when the patient record was created.
+</ResponseField>
+
+<ResponseField name="updated_at" type="string" required>
+  ISO 8601 UTC timestamp of when the patient record was last modified.
+</ResponseField>
+
+## Error Responses
+
+| Status | Code | Description |
+|--------|------|-------------|
+| `401 Unauthorized` | `unauthorized` | Your API key is missing, invalid, or does not have access to this clinic. |
+| `404 Not Found` | `patient_not_found` | No patient with the given UUID exists within your clinic. |
+
+## Example Request
+
+```bash
+curl --request GET \
+  --url "https://api.bydoctor.com.br/v1/patients/a1b2c3d4-e5f6-7890-abcd-ef1234567890" \
+  --header "Authorization: Bearer YOUR_API_KEY"
+```
+
+## Example Response
+
+```json
+{
+  "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "clinic_id": "clinic_01HXZ9QWERTY",
+  "name": "Ana Paula Ferreira",
+  "cpf": "321.654.987-00",
+  "phone": "+5511987654321",
+  "email": "ana.ferreira@email.com",
+  "date_of_birth": "1990-03-15",
+  "health_plan": "Unimed",
+  "whatsapp_opt_out": false,
+  "created_at": "2024-06-01T10:22:00Z",
+  "updated_at": "2024-11-14T08:05:33Z"
+}
+```

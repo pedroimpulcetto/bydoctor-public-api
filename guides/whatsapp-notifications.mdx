@@ -1,0 +1,165 @@
+---
+title: "Trigger WhatsApp Notifications via ByDoctor Events"
+sidebarTitle: "WhatsApp"
+description: "Learn how appointment lifecycle events automatically send WhatsApp messages to patients, and how to control notification behavior via the API."
+---
+
+ByDoctor is an official Meta Business partner, which means every appointment action you take through the API can automatically send a WhatsApp message to the patient — no separate messaging infrastructure required. Confirmations, reminders, and cancellation notices arrive in the patient's WhatsApp inbox moments after the corresponding event fires.
+
+## What triggers a WhatsApp message
+
+Each stage of the appointment lifecycle maps to a specific notification type:
+
+| Trigger | Message sent to patient |
+|---|---|
+| Appointment created | Booking confirmation with date, time, professional name, and clinic address |
+| Appointment confirmed | Receipt confirming the appointment is locked in |
+| Appointment cancelled | Cancellation notice with an invitation to rebook |
+| 24 hours before start | Automatic reminder with appointment details |
+
+Reminder messages are sent automatically by ByDoctor's scheduling engine — you do not need to trigger them manually.
+
+## Controlling notifications with `notify_patient`
+
+When you create an appointment via `POST /appointments`, the `notify_patient` flag controls whether ByDoctor sends the booking confirmation immediately.
+
+<Tabs>
+  <Tab title="Send confirmation (default)">
+    Set `notify_patient: true` (or omit the field — it defaults to `true`) to send the WhatsApp confirmation as soon as the appointment is created. This is appropriate for any booking made in advance.
+
+    ```json
+    {
+      "clinic_id": "org_abc123",
+      "patient_id": "pat_xyz789",
+      "professional_id": "pro_def456",
+      "starts_at": "2025-01-20T09:00:00Z",
+      "ends_at": "2025-01-20T09:30:00Z",
+      "type": "presencial",
+      "notify_patient": true
+    }
+    ```
+  </Tab>
+  <Tab title="Suppress confirmation">
+    Set `notify_patient: false` to skip the confirmation message. Use this for walk-in patients who are already in the clinic — sending them a booking confirmation at that moment would be redundant and confusing.
+
+    ```json
+    {
+      "clinic_id": "org_abc123",
+      "patient_id": "pat_xyz789",
+      "professional_id": "pro_def456",
+      "starts_at": "2025-01-20T09:00:00Z",
+      "ends_at": "2025-01-20T09:30:00Z",
+      "type": "presencial",
+      "notify_patient": false
+    }
+    ```
+
+    <Note>
+    Suppressing the creation confirmation does **not** suppress the 24-hour reminder. If you want to disable the reminder as well, contact ByDoctor support to adjust the notification policy for your clinic.
+    </Note>
+  </Tab>
+</Tabs>
+
+## Checking notification delivery status
+
+After an appointment is created, you can inspect the delivery history of all notifications sent for that appointment using `GET /appointments/{id}/notifications`.
+
+```bash
+GET https://api.bydoctor.com.br/v1/appointments/apt_f47ac10b/notifications
+Authorization: Bearer YOUR_API_KEY
+```
+
+**Example response:**
+
+```json
+{
+  "appointment_id": "apt_f47ac10b",
+  "notifications": [
+    {
+      "id": "notif_001",
+      "type": "booking_confirmation",
+      "channel": "whatsapp",
+      "status": "read",
+      "sent_at": "2025-01-15T14:30:45Z",
+      "delivered_at": "2025-01-15T14:30:52Z",
+      "read_at": "2025-01-15T14:35:10Z"
+    },
+    {
+      "id": "notif_002",
+      "type": "appointment_reminder",
+      "channel": "whatsapp",
+      "status": "delivered",
+      "sent_at": "2025-01-19T09:00:00Z",
+      "delivered_at": "2025-01-19T09:00:07Z",
+      "read_at": null
+    }
+  ]
+}
+```
+
+The possible `status` values are:
+
+| Status | Meaning |
+|---|---|
+| `sent` | Accepted by WhatsApp — not yet delivered to the device |
+| `delivered` | Delivered to the patient's device |
+| `read` | Patient opened the message |
+| `failed` | Delivery failed (see error details in the response) |
+
+## Patient phone number requirements
+
+WhatsApp notifications are sent to the `phone` field stored on the patient record. The number must be in **E.164 format** — a leading `+`, followed by the country code, area code, and number, with no spaces or punctuation.
+
+To check and update a patient's phone number:
+
+```bash
+# Check the current phone
+GET https://api.bydoctor.com.br/v1/patients/pat_xyz789
+Authorization: Bearer YOUR_API_KEY
+```
+
+If the phone field is missing or incorrectly formatted, update it with `PATCH /patients/{id}`:
+
+```bash
+PATCH https://api.bydoctor.com.br/v1/patients/pat_xyz789
+Authorization: Bearer YOUR_API_KEY
+Content-Type: application/json
+```
+
+```json
+{
+  "phone": "+5511999999999"
+}
+```
+
+## Handling opt-outs
+
+Patients can opt out of WhatsApp messages by replying with a stop keyword directly in WhatsApp. Once a patient has opted out, any attempt to send them a notification returns a `whatsapp_opt_out` error in the notification log:
+
+```json
+{
+  "id": "notif_003",
+  "type": "booking_confirmation",
+  "channel": "whatsapp",
+  "status": "failed",
+  "error_code": "whatsapp_opt_out",
+  "error_message": "Patient has opted out of WhatsApp messages.",
+  "sent_at": "2025-01-20T11:00:00Z"
+}
+```
+
+When you encounter a `whatsapp_opt_out` error, consider falling back to an SMS or email notification flow in your integration. Do not attempt to re-enroll the patient programmatically — opt-out preferences must be managed by the patient directly.
+
+<Note>
+You can preview the exact message template that will be sent for each notification type directly in the **ByDoctor dashboard** under Settings → WhatsApp Notifications. Previewing templates before going live is strongly recommended, particularly for clinics with branded language requirements.
+</Note>
+
+## Limitations
+
+- **Sender number** — Messages are sent from the ByDoctor official WhatsApp number. You cannot customise the sender number or use your clinic's own WhatsApp Business number through this API.
+- **Template content** — Message templates are managed by ByDoctor and approved by Meta. Custom template text is not available via the API.
+- **Timing** — The 24-hour reminder is sent relative to `starts_at` in UTC. Confirm that appointment times are stored with the correct UTC offset to avoid reminders arriving at unexpected local times.
+
+<Info>
+The **ByDoctor Pro plan** includes a monthly WhatsApp message quota. Confirmations, reminders, and cancellation notices each consume one message credit. Check your current usage and quota in the ByDoctor dashboard under Settings → Billing → WhatsApp Usage. Contact support if you expect to exceed your plan limit.
+</Info>

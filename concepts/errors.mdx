@@ -1,0 +1,158 @@
+---
+title: "Handle ByDoctor API Errors and Status Codes"
+sidebarTitle: "Errors"
+description: "Understand the ByDoctor API error format, HTTP status codes, common error codes, and best practices for retries and validation error handling."
+---
+
+When something goes wrong with an API request, the ByDoctor API always responds with a structured JSON error body rather than a plain text message or an empty response. This consistent format makes it straightforward to identify the problem, display a helpful message to users, and decide whether to retry automatically or surface the issue for human attention.
+
+## Error Response Format
+
+Every error response has the same top-level shape: an `error` object containing a machine-readable `code`, a human-readable `message`, and an optional `details` object with additional context specific to the error type.
+
+```json
+{
+  "error": {
+    "code": "appointment_conflict",
+    "message": "The time slot is already booked for this professional.",
+    "details": {
+      "conflicting_appointment_id": "f47ac10b-58cc-4372-a567-0e02b2c3d479"
+    }
+  }
+}
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `error.code` | string | A stable, snake_case identifier for the error type. Use this in your code — never parse `message`. |
+| `error.message` | string | A plain-language description of the error intended for developers. Do not display this verbatim to end users. |
+| `error.details` | object (optional) | Additional structured data relevant to the specific error. Contents vary by error code. |
+
+<Tip>
+  Build your error-handling logic around `error.code`, not `error.message`. Messages are intended for debugging and may be updated without notice, while codes are stable and versioned.
+</Tip>
+
+---
+
+## HTTP Status Codes
+
+The API uses standard HTTP status codes to indicate the outcome of every request. Your client should handle status codes at the transport layer before inspecting the error body.
+
+| Status | Name | When you'll see it |
+|---|---|---|
+| `200` | OK | The request succeeded and the response body contains the requested data. |
+| `201` | Created | A new resource was successfully created. The response body contains the full resource object. |
+| `400` | Bad Request | The request was malformed — missing required fields, invalid JSON, or unrecognized parameters. |
+| `401` | Unauthorized | The request did not include an API key, or the key is invalid or revoked. |
+| `403` | Forbidden | The API key is valid but does not have permission to perform the requested operation. |
+| `404` | Not Found | The requested resource does not exist, or it belongs to a different clinic than your API key. |
+| `409` | Conflict | The request could not be completed due to a conflict with the current state of a resource (e.g. a double booking). |
+| `422` | Unprocessable Entity | The request was well-formed but failed business-logic validation. See [Validation Errors](#validation-errors) below. |
+| `429` | Too Many Requests | You have exceeded the API rate limit. See the `Retry-After` response header for the wait time in seconds. |
+| `500` | Internal Server Error | An unexpected error occurred on the ByDoctor side. These are rare and usually transient. |
+
+---
+
+## Common Error Codes
+
+The table below lists the error codes you are most likely to encounter across all endpoints. Use these codes to branch your error-handling logic appropriately.
+
+| Code | HTTP Status | Description |
+|---|---|---|
+| `authentication_required` | `401` | No API key was provided in the `Authorization` header. |
+| `invalid_api_key` | `401` | The provided API key does not match any active key for a clinic. |
+| `permission_denied` | `403` | Your API key does not have the required scope for this operation. |
+| `resource_not_found` | `404` | The specified resource ID does not exist within your clinic. |
+| `patient_not_found` | `404` | The `patient_id` referenced in the request does not match a patient in your clinic. |
+| `professional_not_found` | `404` | The `professional_id` referenced in the request does not match a professional in your clinic. |
+| `appointment_conflict` | `409` | The professional already has an appointment overlapping the requested time slot. |
+| `invalid_time_range` | `422` | `ends_at` is before or equal to `starts_at`, or the duration exceeds allowed limits. |
+| `validation_error` | `422` | One or more request fields failed validation. See `details.fields` for field-level errors. |
+| `rate_limit_exceeded` | `429` | Too many requests have been made in a short period. Back off and retry after the indicated delay. |
+
+---
+
+## Retry Strategy
+
+Not all errors are worth retrying. The right approach depends on the HTTP status code:
+
+<Note>
+  **Retry `429` and `5xx` errors with exponential backoff.** These indicate transient conditions — rate limits or temporary server issues — that are likely to resolve on their own. Start with a 1-second delay and double it on each subsequent retry (e.g. 1s → 2s → 4s → 8s), with a maximum of 3–5 attempts. Respect the `Retry-After` header when present on `429` responses.
+
+  **Do not retry `4xx` errors (except `429`).** A `400`, `401`, `403`, `404`, `409`, or `422` response indicates a problem with your request that will not resolve by repeating it. Fix the underlying issue in your code or data before sending another request.
+</Note>
+
+```javascript
+async function requestWithRetry(url, options, maxRetries = 4) {
+  let attempt = 0;
+
+  while (attempt <= maxRetries) {
+    const response = await fetch(url, options);
+
+    // Success
+    if (response.ok) return response.json();
+
+    const { error } = await response.json();
+
+    // Do not retry client errors (except rate limiting)
+    if (response.status >= 400 && response.status < 500 && response.status !== 429) {
+      throw new Error(`Client error ${response.status}: ${error.code}`);
+    }
+
+    // On 429, honour the Retry-After header if present
+    const retryAfter = response.headers.get("Retry-After");
+    const delayMs = retryAfter
+      ? parseInt(retryAfter, 10) * 1000
+      : Math.pow(2, attempt) * 1000;
+
+    if (attempt === maxRetries) {
+      throw new Error(`Max retries reached. Last error: ${error.code}`);
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, delayMs));
+    attempt++;
+  }
+}
+```
+
+---
+
+## Validation Errors
+
+When a request fails field-level validation (HTTP `422`), the `details` object includes a `fields` array. Each entry in the array identifies the specific field that failed and explains why, so you can map errors directly to form inputs or log them for debugging.
+
+```json
+{
+  "error": {
+    "code": "validation_error",
+    "message": "The request contains invalid or missing fields.",
+    "details": {
+      "fields": [
+        {
+          "field": "starts_at",
+          "message": "Must be a valid ISO 8601 datetime string."
+        },
+        {
+          "field": "patient_id",
+          "message": "This field is required."
+        },
+        {
+          "field": "ends_at",
+          "message": "Must be after starts_at."
+        }
+      ]
+    }
+  }
+}
+```
+
+Each object in the `fields` array has the following structure:
+
+| Field | Type | Description |
+|---|---|---|
+| `field` | string | The name of the request body field that failed validation. Nested fields use dot notation (e.g. `"address.zip"`). |
+| `message` | string | A description of the specific validation rule that was violated. |
+
+<Warning>
+  When displaying validation errors to your users, use the `field` names to map errors back to the appropriate UI inputs. Do not expose the raw `message` strings from the API — write user-friendly copy specific to your application.
+</Warning>

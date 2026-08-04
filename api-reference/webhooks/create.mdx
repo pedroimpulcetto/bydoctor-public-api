@@ -1,0 +1,141 @@
+---
+title: "Register a Webhook Endpoint — POST /webhooks"
+sidebarTitle: "Create"
+description: "POST /webhooks — register a new HTTPS endpoint to receive ByDoctor event notifications. Returns a signing secret."
+---
+
+The Register a Webhook Endpoint call lets you subscribe an HTTPS URL to one or more ByDoctor events. Once registered, ByDoctor will send a signed HTTP `POST` request to your URL whenever a matching event occurs in your clinic. The response includes a one-time signing secret you must store immediately — it will not be shown again.
+
+## Endpoint
+
+```
+POST https://api.bydoctor.com.br/v1/webhooks
+```
+
+## Authentication
+
+Include your API key as a Bearer token in the `Authorization` header of every request.
+
+```
+Authorization: Bearer YOUR_API_KEY
+```
+
+## Request Body Parameters
+
+<ParamField body="url" type="string" required>
+  The full HTTPS URL of your endpoint. ByDoctor will `POST` event payloads to this address. Plain HTTP URLs are rejected — your endpoint must use `https://`.
+</ParamField>
+
+<ParamField body="events" type="array" required>
+  An array of event name strings you want to subscribe to. Pass `["*"]` to subscribe to all current and future events. See the full list of available events below.
+</ParamField>
+
+## Available Events
+
+```
+# Appointments
+appointment.created
+appointment.updated
+appointment.confirmed
+appointment.cancelled
+appointment.completed
+appointment.no_show
+
+# Patients
+patient.created
+patient.updated
+
+# Payments
+payment.created
+payment.paid
+payment.cancelled
+
+# Teleconsultations
+teleconsultation.started
+teleconsultation.ended
+```
+
+<Tip>
+  You can pass `["*"]` as the `events` value to subscribe to **all events** using a wildcard. This is handy during development and testing, but we recommend subscribing only to the specific events your integration needs in production — it reduces unnecessary traffic and simplifies your event handler logic.
+</Tip>
+
+## Response Fields
+
+A successful request returns HTTP `201 Created` with the newly registered webhook object, including the one-time signing secret.
+
+<ResponseField name="id" type="string">
+  Unique identifier for the webhook endpoint (UUID).
+</ResponseField>
+
+<ResponseField name="clinic_id" type="string">
+  Identifier of the clinic this webhook belongs to.
+</ResponseField>
+
+<ResponseField name="url" type="string">
+  The HTTPS endpoint URL you registered.
+</ResponseField>
+
+<ResponseField name="events" type="array">
+  The list of event names this webhook is subscribed to, as provided in the request.
+</ResponseField>
+
+<ResponseField name="secret" type="string">
+  HMAC signing secret. ByDoctor uses this value to sign every event payload sent to your endpoint. You should use it to verify that incoming requests genuinely originate from ByDoctor. **This value is only returned once.**
+</ResponseField>
+
+<ResponseField name="active" type="boolean">
+  `true` for all newly registered webhooks. You can pause delivery at any time by calling `PATCH /webhooks/{id}` with `{"active": false}`.
+</ResponseField>
+
+<ResponseField name="created_at" type="string">
+  ISO 8601 UTC timestamp of when this webhook was registered.
+</ResponseField>
+
+<Warning>
+  **Store the `secret` immediately.** ByDoctor will never return it again after this response. If you lose it, you must delete the webhook and create a new one to obtain a fresh signing secret. We recommend storing it in your application's secret manager (e.g. AWS Secrets Manager, HashiCorp Vault) rather than in plain environment variables.
+</Warning>
+
+## Error Responses
+
+| Status | Code | Description |
+|--------|------|-------------|
+| `400`  | `invalid_url` | The provided URL is missing, malformed, or uses HTTP instead of HTTPS. |
+| `400`  | `invalid_event` | One or more values in the `events` array are not recognised event names. |
+| `422`  | `webhook_limit_exceeded` | Your clinic has already registered the maximum of **10 webhook endpoints**. Delete an existing endpoint before creating a new one. |
+
+## Example Request
+
+```bash
+curl --request POST \
+  --url "https://api.bydoctor.com.br/v1/webhooks" \
+  --header "Authorization: Bearer YOUR_API_KEY" \
+  --header "Content-Type: application/json" \
+  --data '{
+    "url": "https://app.example.com/webhooks/bydoctor",
+    "events": [
+      "appointment.created",
+      "appointment.confirmed",
+      "appointment.cancelled",
+      "payment.paid"
+    ]
+  }'
+```
+
+## Example Response
+
+```json
+{
+  "id": "wh_c1d2e3f4-a5b6-7890-cdef-123456789abc",
+  "clinic_id": "clinic_01HXYZ",
+  "url": "https://app.example.com/webhooks/bydoctor",
+  "events": [
+    "appointment.created",
+    "appointment.confirmed",
+    "appointment.cancelled",
+    "payment.paid"
+  ],
+  "secret": "whsec_4f8a2b1c9d3e7f06a5b4c8d2e1f3a709b6c5d4e3f2a1b0c9d8e7f6a5b4c3d2e",
+  "active": true,
+  "created_at": "2024-06-10T09:00:00Z"
+}
+```

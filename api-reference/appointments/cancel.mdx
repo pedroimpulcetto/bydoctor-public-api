@@ -1,0 +1,95 @@
+---
+title: "Cancel Appointment — DELETE /appointments/{id}"
+sidebarTitle: "Cancel"
+description: "DELETE /appointments/{id} — cancel an appointment. Optionally notify the patient via WhatsApp about the cancellation."
+---
+
+The Cancel Appointment endpoint permanently transitions an appointment to the `cancelled` status. This is the only supported way to cancel a booking — the Update endpoint (`PATCH`) intentionally does not allow setting `status` to `cancelled`. You can optionally send a WhatsApp cancellation notice to the patient and supply a plain-text reason that is stored in the audit log for compliance and reporting purposes.
+
+## Request
+
+**DELETE** `https://api.bydoctor.com.br/v1/appointments/{id}`
+
+<ParamField path="id" type="string" required>
+  The UUID of the appointment to cancel.
+</ParamField>
+
+<ParamField query="notify_patient" type="boolean" default={false}>
+  When `true`, ByDoctor sends a WhatsApp cancellation message to the patient's registered phone number after the appointment is successfully cancelled.
+</ParamField>
+
+<ParamField query="reason" type="string">
+  A plain-text description of why the appointment is being cancelled. This value is stored in the audit log and is visible to clinic staff in the dashboard. It is not sent to the patient. Example: `"Patient requested reschedule"`.
+</ParamField>
+
+## Response Fields
+
+<ResponseField name="id" type="string">
+  The UUID of the appointment that was cancelled.
+</ResponseField>
+
+<ResponseField name="status" type="string">
+  Always `cancelled` on a successful response.
+</ResponseField>
+
+<ResponseField name="cancelled_at" type="string">
+  The ISO 8601 UTC timestamp at which the cancellation was processed.
+</ResponseField>
+
+<Note>
+  Cancellation is **permanent** — a cancelled appointment cannot be reinstated. If a patient simply did not attend their appointment, use [Update Appointment](/api-reference/appointments/update) (`PATCH /appointments/{id}`) with `"status": "no_show"` instead. This preserves the appointment record in a recoverable state and keeps your reporting accurate.
+</Note>
+
+## Example Request
+
+```bash
+curl --request DELETE \
+  --url "https://api.bydoctor.com.br/v1/appointments/c3d4e5f6-a7b8-9012-cdef-123456789012?notify_patient=true&reason=Patient+requested+reschedule" \
+  --header "Authorization: Bearer YOUR_API_KEY" \
+  --header "Accept: application/json"
+```
+
+## Example Response (200 OK)
+
+```json
+{
+  "id": "c3d4e5f6-a7b8-9012-cdef-123456789012",
+  "status": "cancelled",
+  "cancelled_at": "2025-07-10T11:05:22Z"
+}
+```
+
+## Error Responses
+
+**401 Unauthorized** — Your API key is missing or invalid.
+
+```json
+{
+  "error": {
+    "code": "unauthorized",
+    "message": "Invalid or missing API key. Provide a valid Bearer token in the Authorization header."
+  }
+}
+```
+
+**404 Not Found** — No appointment with the given ID exists in your clinic.
+
+```json
+{
+  "error": {
+    "code": "not_found",
+    "message": "No appointment found with id 'c3d4e5f6-a7b8-9012-cdef-123456789012'."
+  }
+}
+```
+
+**422 Unprocessable Entity** — The appointment cannot be cancelled because it is already in a terminal state (`completed` or `cancelled`).
+
+```json
+{
+  "error": {
+    "code": "unprocessable_entity",
+    "message": "Appointment 'c3d4e5f6-a7b8-9012-cdef-123456789012' cannot be cancelled because its current status is 'completed'."
+  }
+}
+```

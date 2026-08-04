@@ -1,32 +1,11 @@
 {
-  "$schema": "https://mintlify.com/docs.json",
-  "name": "ByDoctor",
+  "projectType": "api-service",
+  "projectName": "ByDoctor",
+  "projectDescription": "ByDoctor is a Brazilian clinic management SaaS platform providing public APIs and webhooks so third-party systems can integrate scheduling, patient records, prescriptions, payments, and WhatsApp notifications.",
   "theme": "luma",
-  "logo": {
-    "light": "https://media.brand.dev/3dfd7f1d-ecbd-4272-96a0-1fa4ce10fa74.svg",
-    "dark": "https://media.brand.dev/3dfd7f1d-ecbd-4272-96a0-1fa4ce10fa74.svg"
-  },
-  "favicon": "https://media.brand.dev/62b4738d-07cf-4985-a049-770a52441512.png",
-  "colors": {
-    "primary": "#04a44c",
-    "light": "#84c465",
-    "dark": "#eff2ef"
-  },
-  "font": {
-    "headings": {
-      "family": "Outfit"
-    },
-    "body": {
-      "family": "Outfit"
-    }
-  },
-  "navbar": {
-    "primary": {
-      "type": "button",
-      "label": "Sign Up Free",
-      "href": "https://www.app.bydoctor.com.br/auth/sign-up"
-    }
-  },
+  "primaryColor": "#04a44c",
+  "lightColor": "#84c465",
+  "darkColor": "#eff2ef",
   "navigation": {
     "tabs": [
       {
@@ -116,9 +95,39 @@
       }
     ]
   },
-  "footer": {
-    "socials": {
-      "website": "https://bydoctor.com.br"
-    }
-  }
+  "keyFeatures": [
+    "Appointment scheduling and management API",
+    "Patient records and medical history",
+    "Electronic prescriptions via MEMED integration",
+    "WhatsApp Business API notifications",
+    "Webhook event system for real-time integrations",
+    "Financial tracking — payments, health plans, bank accounts",
+    "Multi-professional clinic and role-based access",
+    "Teleconsultation (video) sessions",
+    "Audit trail for compliance (CFM, LGPD)",
+    "Patient flow Kanban board"
+  ],
+  "publicApiSurface": [
+    "GET /appointments",
+    "POST /appointments",
+    "GET /appointments/{id}",
+    "PATCH /appointments/{id}",
+    "DELETE /appointments/{id}",
+    "GET /patients",
+    "POST /patients",
+    "GET /patients/{id}",
+    "PATCH /patients/{id}",
+    "GET /schedules",
+    "GET /schedules/availability",
+    "GET /payments",
+    "POST /payments",
+    "GET /webhooks",
+    "POST /webhooks",
+    "DELETE /webhooks/{id}",
+    "Webhook: appointment.created",
+    "Webhook: appointment.updated",
+    "Webhook: appointment.cancelled",
+    "Webhook: patient.created",
+    "Webhook: payment.received"
+  ]
 }

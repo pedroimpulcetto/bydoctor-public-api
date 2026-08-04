@@ -1,0 +1,157 @@
+---
+title: "List Patients — GET /patients"
+sidebarTitle: "List"
+description: "GET /patients — retrieve a paginated list of patients for your clinic. Search by name, CPF, or phone number."
+---
+
+The **List Patients** endpoint returns a cursor-paginated collection of every patient registered in your clinic. You can narrow results using the `search` parameter, which matches against name, CPF, and phone number, or filter by health plan and registration date. Use the `next_cursor` value from each response to walk through subsequent pages.
+
+## Endpoint
+
+```
+GET https://api.bydoctor.com.br/v1/patients
+```
+
+## Authentication
+
+Include your API key in the `Authorization` header on every request:
+
+```
+Authorization: Bearer YOUR_API_KEY
+```
+
+## Query Parameters
+
+<ParamField query="limit" type="integer" default="20">
+  Maximum number of patient records to return per page. Accepted range is `1`–`100`.
+</ParamField>
+
+<ParamField query="cursor" type="string">
+  Opaque pagination cursor returned as `next_cursor` in the previous response. Omit this parameter to start from the beginning of the list.
+</ParamField>
+
+<ParamField query="search" type="string">
+  Free-text search string. Matched case-insensitively against the patient's full name, CPF, and phone number. Partial matches are supported.
+</ParamField>
+
+<ParamField query="health_plan" type="string">
+  Filter results to patients enrolled in a specific health insurance plan. The value must match the `health_plan` field exactly (case-insensitive).
+</ParamField>
+
+<ParamField query="created_after" type="string">
+  Return only patients created after this ISO 8601 UTC timestamp, e.g. `2024-01-01T00:00:00Z`. Useful for incremental syncs.
+</ParamField>
+
+## Response Fields
+
+### `data` array — Patient object
+
+<ResponseField name="id" type="string" required>
+  Unique identifier for the patient (UUID v4).
+</ResponseField>
+
+<ResponseField name="clinic_id" type="string" required>
+  Identifier of the clinic this patient belongs to.
+</ResponseField>
+
+<ResponseField name="name" type="string" required>
+  Patient's full name.
+</ResponseField>
+
+<ResponseField name="cpf" type="string">
+  Brazilian individual taxpayer identifier in the format `123.456.789-00`. Present only if recorded.
+</ResponseField>
+
+<ResponseField name="phone" type="string">
+  Contact phone number in E.164 format, e.g. `+5511999999999`.
+</ResponseField>
+
+<ResponseField name="email" type="string">
+  Patient's email address.
+</ResponseField>
+
+<ResponseField name="date_of_birth" type="string">
+  Date of birth in `YYYY-MM-DD` format.
+</ResponseField>
+
+<ResponseField name="health_plan" type="string">
+  Name of the patient's health insurance plan.
+</ResponseField>
+
+<ResponseField name="whatsapp_opt_out" type="boolean" required>
+  `true` if the patient has opted out of WhatsApp notifications from your clinic.
+</ResponseField>
+
+<ResponseField name="created_at" type="string" required>
+  ISO 8601 UTC timestamp of when the patient record was created.
+</ResponseField>
+
+<ResponseField name="updated_at" type="string" required>
+  ISO 8601 UTC timestamp of when the patient record was last modified.
+</ResponseField>
+
+### `meta` object
+
+<ResponseField name="total" type="integer" required>
+  Total number of patients matching the current query filters.
+</ResponseField>
+
+<ResponseField name="has_more" type="boolean" required>
+  `true` if there are additional pages of results beyond the current response.
+</ResponseField>
+
+<ResponseField name="next_cursor" type="string">
+  Cursor value to pass as the `cursor` query parameter on your next request. Present only when `has_more` is `true`.
+</ResponseField>
+
+<Note>
+  CPF is a sensitive personal identifier protected under Brazil's **Lei Geral de Proteção de Dados (LGPD)**. Treat it with the same care as any government-issued ID — avoid logging CPF values in plain text, and limit access to this field to authorised personnel only.
+</Note>
+
+## Example Request
+
+```bash
+curl --request GET \
+  --url "https://api.bydoctor.com.br/v1/patients?limit=2&search=ana" \
+  --header "Authorization: Bearer YOUR_API_KEY"
+```
+
+## Example Response
+
+```json
+{
+  "data": [
+    {
+      "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+      "clinic_id": "clinic_01HXZ9QWERTY",
+      "name": "Ana Paula Ferreira",
+      "cpf": "321.654.987-00",
+      "phone": "+5511987654321",
+      "email": "ana.ferreira@email.com",
+      "date_of_birth": "1990-03-15",
+      "health_plan": "Unimed",
+      "whatsapp_opt_out": false,
+      "created_at": "2024-06-01T10:22:00Z",
+      "updated_at": "2024-11-14T08:05:33Z"
+    },
+    {
+      "id": "b2c3d4e5-f6a7-8901-bcde-f12345678901",
+      "clinic_id": "clinic_01HXZ9QWERTY",
+      "name": "Ana Cristina Souza",
+      "cpf": null,
+      "phone": "+5521998887776",
+      "email": null,
+      "date_of_birth": "1985-11-28",
+      "health_plan": "Bradesco Saúde",
+      "whatsapp_opt_out": true,
+      "created_at": "2024-09-10T14:48:00Z",
+      "updated_at": "2024-09-10T14:48:00Z"
+    }
+  ],
+  "meta": {
+    "total": 47,
+    "has_more": true,
+    "next_cursor": "eyJpZCI6ImIyYzNkNGU1In0"
+  }
+}
+```

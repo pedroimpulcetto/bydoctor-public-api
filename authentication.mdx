@@ -1,0 +1,137 @@
+---
+title: "Authenticate with the ByDoctor API Using API Keys"
+sidebarTitle: "Authentication"
+description: "Learn how to generate a ByDoctor API key, pass it in your requests using the Authorization header, and manage key scopes and rotation."
+---
+
+The ByDoctor API uses API keys for authentication. Every request must include a valid key in the `Authorization` header using the **Bearer token** scheme. Without a valid key, the API returns `401 Unauthorized` and ignores the request entirely.
+
+## API Keys Overview
+
+An API key is a long-lived credential tied to a specific ByDoctor clinic account. Each key carries a set of **scopes** that determine which operations it can perform. You can issue multiple keys — for example, one key per integration or service — and revoke any key independently without affecting the others.
+
+<Info>
+  API keys are issued at the **clinic level**. A key has access only to the data belonging to the clinic under which it was created, enforcing ByDoctor's multi-tenant isolation model.
+</Info>
+
+## How to Get Your API Key
+
+<Steps>
+  <Step title="Log in to your ByDoctor dashboard">
+    Navigate to [app.bydoctor.com.br](https://www.app.bydoctor.com.br) and sign in with an account that has the **Admin** role. Only Admins can manage API keys.
+  </Step>
+  <Step title="Open the API settings page">
+    In the left navigation, click **Settings**, then select the **API** tab. This page lists all active keys for your clinic.
+  </Step>
+  <Step title="Create a new API key">
+    Click **New API Key**, enter a descriptive name (for example, `scheduling-sync-prod`), and select the scopes your integration needs. Click **Create**.
+  </Step>
+  <Step title="Copy and store your key securely">
+    The full key is displayed **only once** at creation time. Copy it immediately and store it in a secrets manager or environment variable. ByDoctor does not show the raw key again after you close the dialog.
+  </Step>
+</Steps>
+
+## Passing Your API Key in Requests
+
+Include your API key as a Bearer token in the `Authorization` header of every request. The header format is:
+
+```
+Authorization: Bearer YOUR_API_KEY
+```
+
+<CodeGroup>
+```bash cURL
+curl https://api.bydoctor.com.br/v1/appointments \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+```javascript JavaScript (fetch)
+const response = await fetch('https://api.bydoctor.com.br/v1/appointments', {
+  headers: {
+    'Authorization': 'Bearer YOUR_API_KEY',
+    'Content-Type': 'application/json'
+  }
+});
+
+const data = await response.json();
+console.log(data);
+```
+</CodeGroup>
+
+Replace `YOUR_API_KEY` with the key you copied from the dashboard. Never hardcode the key directly in source files — use an environment variable like `BYDOCTOR_API_KEY` and inject it at runtime.
+
+## Key Scopes
+
+Scopes limit what an API key can do. Assign the minimum set of scopes required for your integration to follow the principle of least privilege.
+
+| Scope | Permitted HTTP Methods | Typical Use Case |
+|---|---|---|
+| `read` | `GET` | Fetching appointments, patients, and financial summaries |
+| `write` | `POST`, `PATCH` | Creating and updating appointments, patients, and payments |
+| `admin` | `DELETE`, plus webhook management | Deleting records, registering and removing webhook endpoints |
+
+<Tip>
+  Most read-heavy integrations — such as dashboard widgets or reporting tools — only need the `read` scope. Reserve `admin`-scoped keys for internal back-end services.
+</Tip>
+
+## Rotating Your API Key
+
+Rotate your key whenever you suspect it has been exposed, or as part of a regular credential rotation schedule. Rotation is immediate — the old key stops working the moment you revoke it.
+
+<Steps>
+  <Step title="Create the replacement key first">
+    Follow the steps in [How to Get Your API Key](#how-to-get-your-api-key) to issue a new key with the same scopes. Update all services that use the old key to reference the new one.
+  </Step>
+  <Step title="Verify the new key is working">
+    Make a test request using the new key and confirm you receive a `200 OK` response before proceeding.
+  </Step>
+  <Step title="Revoke the old key">
+    Return to **Settings → API** in the dashboard, locate the old key by name, and click **Revoke**. Confirm the action. The key is immediately invalidated.
+  </Step>
+</Steps>
+
+## Authentication Error Responses
+
+When authentication fails, the API returns a structured JSON error body alongside the appropriate HTTP status code.
+
+### 401 Unauthorized
+
+Returned when no API key is provided, the key is malformed, or the key has been revoked.
+
+```json
+{
+  "error": {
+    "code": "unauthorized",
+    "message": "No valid API key provided. Include your key in the Authorization header as a Bearer token.",
+    "status": 401
+  }
+}
+```
+
+### 403 Forbidden
+
+Returned when the API key is valid but lacks the scope required for the requested operation — for example, using a `read`-only key to create an appointment.
+
+```json
+{
+  "error": {
+    "code": "forbidden",
+    "message": "Your API key does not have the 'write' scope required for this operation.",
+    "status": 403
+  }
+}
+```
+
+## Security Best Practices
+
+<Warning>
+  **Never commit API keys to source control.** A key accidentally pushed to a public repository should be considered compromised immediately. Revoke it and issue a replacement before doing anything else.
+</Warning>
+
+Follow these practices to keep your API keys secure:
+
+- **Use environment variables** — Store keys in environment variables (e.g., `BYDOCTOR_API_KEY`) and load them at runtime. Use a secrets manager such as AWS Secrets Manager, HashiCorp Vault, or Doppler in production environments.
+- **Issue one key per integration** — Separate keys per service make it easy to revoke a single compromised key without affecting other integrations.
+- **Apply minimal scopes** — Only grant the scopes an integration actually needs. A webhook consumer needs only `read`; a booking engine needs `write`.
+- **Rotate keys regularly** — Establish a rotation schedule (for example, every 90 days) and automate it where possible.
+- **Monitor for unexpected usage** — Review the audit log in **Settings → Audit Trail** to detect unusual patterns such as high request volumes from unexpected IP addresses.
