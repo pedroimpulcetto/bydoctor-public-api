@@ -1,7 +1,7 @@
 ---
-title: "Update Patient — PATCH /patients/{id}"
+title: "Update Patient — PATCH /patients/{id} | ByDoctor API"
 sidebarTitle: "Update"
-description: "PATCH /patients/{id} — update patient contact details, health plan, or other fields. All fields are optional."
+description: "Partially update a patient record. Send only the fields you want to change — omitted fields are left untouched. Returns the full updated patient object."
 ---
 
 The **Update Patient** endpoint performs a partial update on an existing patient record. You only need to include the fields you want to change — any field omitted from the request body is left untouched. On success, the API returns the complete updated patient object. The `updated_at` timestamp is automatically refreshed to the current UTC time.

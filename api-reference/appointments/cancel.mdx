@@ -1,7 +1,7 @@
 ---
-title: "Cancel Appointment — DELETE /appointments/{id}"
+title: "Cancel an Existing Appointment — DELETE /appointments/{id}"
 sidebarTitle: "Cancel"
-description: "DELETE /appointments/{id} — cancel an appointment. Optionally notify the patient via WhatsApp about the cancellation."
+description: "Permanently cancel an appointment by its UUID. Optionally send the patient a WhatsApp cancellation notice and log a reason for audit purposes."
 ---
 
 The Cancel Appointment endpoint permanently transitions an appointment to the `cancelled` status. This is the only supported way to cancel a booking — the Update endpoint (`PATCH`) intentionally does not allow setting `status` to `cancelled`. You can optionally send a WhatsApp cancellation notice to the patient and supply a plain-text reason that is stored in the audit log for compliance and reporting purposes.
@@ -60,6 +60,17 @@ curl --request DELETE \
 ```
 
 ## Error Responses
+
+**400 Bad Request** — The `id` path parameter is not a valid UUID format.
+
+```json
+{
+  "error": {
+    "code": "validation_error",
+    "message": "The value 'not-a-uuid' is not a valid appointment UUID."
+  }
+}
+```
 
 **401 Unauthorized** — Your API key is missing or invalid.
 

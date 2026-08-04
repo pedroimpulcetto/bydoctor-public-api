@@ -1,5 +1,5 @@
 ---
-title: "Verify ByDoctor Webhook Signatures for Security"
+title: "Verify ByDoctor Webhook Signatures to Secure Your Endpoint"
 sidebarTitle: "Security"
 description: "Use HMAC-SHA256 signature verification to confirm every webhook delivery is genuinely from ByDoctor and has not been tampered with in transit."
 ---
@@ -10,7 +10,7 @@ Anyone who knows your webhook URL could send a forged POST request that looks li
 
 Every delivery from ByDoctor includes the following HTTP header:
 
-```
+```http
 X-ByDoctor-Signature: sha256=3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c
 ```
 
@@ -81,6 +81,7 @@ app.post('/webhooks/bydoctor', express.raw({ type: 'application/json' }), (req, 
 ```python Python
 import hmac
 import hashlib
+import os
 from flask import Flask, request, abort
 
 app = Flask(__name__)

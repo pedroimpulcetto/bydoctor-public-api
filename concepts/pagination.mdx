@@ -1,5 +1,5 @@
 ---
-title: "Paginate ByDoctor API List Responses Efficiently"
+title: "ByDoctor API Pagination: Cursors, Filters, and Sorting"
 sidebarTitle: "Pagination"
 description: "Learn how cursor-based pagination works across all ByDoctor list endpoints, including query parameters, response envelopes, and filtering options."
 ---
@@ -110,7 +110,7 @@ Most list endpoints accept additional query parameters to narrow results without
 
 **Example — fetch confirmed appointments for a specific professional this week:**
 
-```
+```http
 GET /v1/appointments
   ?professional_id=a1b2c3d4-1234-5678-abcd-ef0123456789
   &status=confirmed
@@ -154,7 +154,7 @@ For the `/v1/appointments` endpoint you can override sorting using the `sort` an
 
 **Example — fetch upcoming appointments in chronological order:**
 
-```
+```http
 GET /v1/appointments?sort=starts_at&order=asc&starts_after=2025-07-10T00:00:00Z
 ```
 

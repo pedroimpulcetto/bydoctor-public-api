@@ -1,7 +1,7 @@
 ---
-title: "List Patients — GET /patients"
+title: "List Patients Endpoint — GET /patients | ByDoctor API"
 sidebarTitle: "List"
-description: "GET /patients — retrieve a paginated list of patients for your clinic. Search by name, CPF, or phone number."
+description: "Retrieve a paginated list of patients for your clinic. Search by name, CPF, or phone, and filter by health plan or registration date."
 ---
 
 The **List Patients** endpoint returns a cursor-paginated collection of every patient registered in your clinic. You can narrow results using the `search` parameter, which matches against name, CPF, and phone number, or filter by health plan and registration date. Use the `next_cursor` value from each response to walk through subsequent pages.
@@ -107,6 +107,13 @@ Authorization: Bearer YOUR_API_KEY
 <Note>
   CPF is a sensitive personal identifier protected under Brazil's **Lei Geral de Proteção de Dados (LGPD)**. Treat it with the same care as any government-issued ID — avoid logging CPF values in plain text, and limit access to this field to authorised personnel only.
 </Note>
+
+## Error Responses
+
+| Status | Code | Description |
+|--------|------|-------------|
+| `400 Bad Request` | `invalid_cursor` | The `cursor` value is malformed or has expired. Start pagination again from the beginning. |
+| `401 Unauthorized` | `unauthorized` | Your API key is missing, invalid, or does not have access to this clinic. |
 
 ## Example Request
 

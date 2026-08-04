@@ -1,10 +1,10 @@
 ---
-title: "Register a Webhook Endpoint — POST /webhooks"
+title: "Register a Webhook Endpoint — POST /webhooks | ByDoctor"
 sidebarTitle: "Create"
-description: "POST /webhooks — register a new HTTPS endpoint to receive ByDoctor event notifications. Returns a signing secret."
+description: "Register a new HTTPS endpoint to receive ByDoctor events. Returns a one-time signing secret — store it immediately, it won't be shown again."
 ---
 
-The Register a Webhook Endpoint call lets you subscribe an HTTPS URL to one or more ByDoctor events. Once registered, ByDoctor will send a signed HTTP `POST` request to your URL whenever a matching event occurs in your clinic. The response includes a one-time signing secret you must store immediately — it will not be shown again.
+The **Register a Webhook Endpoint** call lets you subscribe an HTTPS URL to one or more ByDoctor events. Once registered, ByDoctor will send a signed HTTP `POST` request to your URL whenever a matching event occurs in your clinic. The response includes a one-time signing secret you must store immediately — it will not be shown again.
 
 ## Endpoint
 
@@ -101,6 +101,7 @@ A successful request returns HTTP `201 Created` with the newly registered webhoo
 |--------|------|-------------|
 | `400`  | `invalid_url` | The provided URL is missing, malformed, or uses HTTP instead of HTTPS. |
 | `400`  | `invalid_event` | One or more values in the `events` array are not recognised event names. |
+| `401`  | `unauthorized` | Your API key is missing or invalid. |
 | `422`  | `webhook_limit_exceeded` | Your clinic has already registered the maximum of **10 webhook endpoints**. Delete an existing endpoint before creating a new one. |
 
 ## Example Request

@@ -1,10 +1,10 @@
 ---
-title: "Record a Payment — POST /payments"
+title: "Record a Payment — POST /payments | ByDoctor API Reference"
 sidebarTitle: "Record"
-description: "POST /payments — record a payment for an appointment. Supports cash, card, PIX, and health plan methods."
+description: "Record a payment for an appointment in centavos. Supports cash, credit card, debit card, PIX, and health plan payment methods for your clinic."
 ---
 
-The Record a Payment endpoint lets you attach a payment entry to an existing appointment. You can record the full amount in a single call or make multiple calls against the same appointment to track partial payments — for example, when a patient splits their balance across two visits or payment methods.
+The **Record a Payment** endpoint lets you attach a payment entry to an existing appointment. You can record the full amount in a single call or make multiple calls against the same appointment to track partial payments — for example, when a patient splits their balance across two visits or payment methods.
 
 ## Endpoint
 
@@ -27,7 +27,7 @@ Authorization: Bearer YOUR_API_KEY
 </ParamField>
 
 <ParamField body="amount" type="integer" required>
-  Payment amount in centavos (BRL). For example, pass `15000` to record R$ 150,00. Must be a positive integer greater than zero.
+  Payment amount in **centavos** (BRL). For example, pass `15000` to record R$ 150,00. Must be a positive integer greater than zero.
 </ParamField>
 
 <ParamField body="method" type="string" required>
@@ -42,9 +42,9 @@ Authorization: Bearer YOUR_API_KEY
   Free-text notes to attach to this payment record. Useful for recording reference numbers, authorization codes, or any other context.
 </ParamField>
 
-<Note>
+<Warning>
   Always pass `amount` as an **integer in centavos** — never as a float or a formatted string. Passing `150.00` or `"150,00"` will return a `400` error. The correct value for R$ 150,00 is `15000`.
-</Note>
+</Warning>
 
 ## Response Fields
 
@@ -100,6 +100,7 @@ A successful request returns HTTP `201 Created` with the newly created payment o
 |--------|------|-------------|
 | `400`  | `invalid_amount` | `amount` is missing, zero, negative, or not an integer. |
 | `400`  | `invalid_method` | `method` is missing or not one of the accepted values. |
+| `401`  | `unauthorized` | Your API key is missing or invalid. |
 | `404`  | `appointment_not_found` | No appointment with the given `appointment_id` exists in your clinic. |
 
 ## Example Request

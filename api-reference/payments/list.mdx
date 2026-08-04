@@ -1,10 +1,10 @@
 ---
-title: "List Payments — GET /payments"
+title: "List Payments — GET /payments | ByDoctor API Reference"
 sidebarTitle: "List"
 description: "GET /payments — retrieve a paginated list of payments. Filter by appointment, status, method, or date range for financial reporting."
 ---
 
-The List Payments endpoint returns a paginated collection of payment records associated with your clinic. You can narrow results using filters for appointment, status, payment method, or a creation date range — making it straightforward to pull the data you need for financial reconciliation and reporting.
+The **List Payments** endpoint returns a paginated collection of payment records associated with your clinic. You can narrow results using filters for appointment, status, payment method, or a creation date range — making it straightforward to pull the data you need for financial reconciliation and reporting.
 
 ## Endpoint
 
@@ -121,6 +121,14 @@ The response is wrapped in a standard paginated envelope.
 <Note>
   The `meta.total` field reflects the count of payments that match your active filters — not the total number of payments in your clinic. When combined with `created_after` and `created_before`, this makes it easy to sum revenue for a specific reporting period without fetching every page.
 </Note>
+
+## Error Responses
+
+| Status | Code | Description |
+|--------|------|-------------|
+| `400 Bad Request` | `invalid_status` | The `status` value is not one of `pending`, `paid`, or `cancelled`. |
+| `400 Bad Request` | `invalid_method` | The `method` value is not one of the accepted payment methods. |
+| `401 Unauthorized` | `unauthorized` | Your API key is missing or invalid. |
 
 ## Example Request
 

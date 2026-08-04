@@ -1,7 +1,7 @@
 ---
 title: "Check Appointment Availability — GET /schedules/availability"
 sidebarTitle: "Availability"
-description: "GET /schedules/availability — fetch open time slots for a professional on a specific date. Use before booking."
+description: "Fetch real-time open appointment slots for a professional on a specific date. Accounts for existing bookings, blocked time, and holidays."
 ---
 
 The **Check Appointment Availability** endpoint returns every possible appointment slot for a given professional on a specific date, indicating whether each slot is open or already taken. Slots are calculated from the professional's configured working hours and filtered against existing bookings, blocked time, and holidays — so what you receive is an accurate, real-time picture of what can be offered to a patient.
@@ -45,22 +45,34 @@ Authorization: Bearer YOUR_API_KEY
 <ResponseField name="slots" type="array" required>
   Ordered array of time slot objects covering the professional's full working window for the given date.
 
-  <ResponseField name="slots[].starts_at" type="string" required>
-    ISO 8601 UTC timestamp for the beginning of the slot, e.g. `2025-02-10T11:00:00Z`.
-  </ResponseField>
+  <Expandable title="Slot object fields">
+    <ResponseField name="slots[].starts_at" type="string" required>
+      ISO 8601 UTC timestamp for the beginning of the slot, e.g. `2025-02-10T11:00:00Z`.
+    </ResponseField>
 
-  <ResponseField name="slots[].ends_at" type="string" required>
-    ISO 8601 UTC timestamp for the end of the slot, e.g. `2025-02-10T11:30:00Z`.
-  </ResponseField>
+    <ResponseField name="slots[].ends_at" type="string" required>
+      ISO 8601 UTC timestamp for the end of the slot, e.g. `2025-02-10T11:30:00Z`.
+    </ResponseField>
 
-  <ResponseField name="slots[].available" type="boolean" required>
-    `true` if the slot is open and can be booked. `false` if the slot is already occupied by a booking or blocked by the professional.
-  </ResponseField>
+    <ResponseField name="slots[].available" type="boolean" required>
+      `true` if the slot is open and can be booked. `false` if the slot is already occupied by a booking or blocked by the professional.
+    </ResponseField>
+  </Expandable>
 </ResponseField>
 
 <Tip>
   Always call this endpoint before creating an appointment via `POST /appointments`. Even if a slot appears available in your UI, another booking may have been made in the milliseconds since you last polled. If you attempt to book an unavailable slot, the Appointments API returns a `409 Conflict` — checking availability first lets you surface a friendly message to the patient and offer alternatives without an extra round-trip.
 </Tip>
+
+## Error Responses
+
+| Status | Code | Description |
+|--------|------|-------------|
+| `400 Bad Request` | `missing_professional_id` | The required `professional_id` query parameter was not provided. |
+| `400 Bad Request` | `missing_date` | The required `date` query parameter was not provided. |
+| `400 Bad Request` | `invalid_date_format` | The `date` value does not match `YYYY-MM-DD` format. |
+| `401 Unauthorized` | `unauthorized` | Your API key is missing or invalid. |
+| `404 Not Found` | `professional_not_found` | No professional with the given `professional_id` exists in your clinic. |
 
 ## Example Request
 

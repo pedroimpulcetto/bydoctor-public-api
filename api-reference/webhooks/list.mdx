@@ -1,10 +1,10 @@
 ---
-title: "List Webhook Endpoints — GET /webhooks"
+title: "List Webhook Endpoints — GET /webhooks | ByDoctor API"
 sidebarTitle: "List"
-description: "GET /webhooks — retrieve all registered webhook endpoints for your clinic, including their subscribed event types."
+description: "Retrieve all registered webhook endpoints for your clinic, including subscribed event types and active status. The signing secret is never returned."
 ---
 
-The List Webhook Endpoints endpoint returns every webhook you have registered for your clinic, along with the event types each endpoint subscribes to and its current active state. Use this endpoint to audit your integrations, verify subscriptions, or build a management UI over your webhook configuration.
+The **List Webhook Endpoints** endpoint returns every webhook you have registered for your clinic, along with the event types each endpoint subscribes to and its current active state. Use this endpoint to audit your integrations, verify subscriptions, or build a management UI over your webhook configuration.
 
 ## Endpoint
 
@@ -49,7 +49,7 @@ Authorization: Bearer YOUR_API_KEY
     </ResponseField>
 
     <ResponseField name="events" type="array">
-      List of event names this endpoint is subscribed to (e.g. `["appointment.created", "payment.paid"]`). A value of `["*"]` indicates a wildcard subscription covering all events.
+      List of event names this endpoint is subscribed to (e.g. `["appointment.created", "payment.paid"]`).
     </ResponseField>
 
     <ResponseField name="active" type="boolean">
@@ -83,6 +83,12 @@ Authorization: Bearer YOUR_API_KEY
 <Note>
   The `secret` field is **never returned** when listing webhooks. It is only included in the response when you first create the endpoint via `POST /webhooks`. If you lose your secret, you will need to delete the existing webhook and create a new one to receive a fresh signing secret.
 </Note>
+
+## Error Responses
+
+| Status | Code | Description |
+|--------|------|-------------|
+| `401 Unauthorized` | `unauthorized` | Your API key is missing or invalid. |
 
 ## Example Request
 

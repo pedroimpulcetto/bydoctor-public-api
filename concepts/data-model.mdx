@@ -16,7 +16,7 @@ The resource hierarchy flows from the top-level Clinic down to individual transa
 - **Payments** are attached to an Appointment and record the financial transaction for that visit.
 - **Webhooks** are registered at the clinic level and receive real-time event notifications for changes to any of the above resources.
 
-```
+```text
 Clinic
 ├── Professionals
 ├── Patients
@@ -235,7 +235,7 @@ A Webhook registers a URL to receive real-time event notifications from ByDoctor
 
 All timestamp fields in the API use **ISO 8601 format in UTC**, denoted by the `Z` suffix. For example:
 
-```
+```text
 2025-01-15T14:30:00Z
 ```
 
@@ -255,7 +255,7 @@ Monetary amounts are always represented as **integers in centavos** (Brazilian B
 
 All resource IDs are **UUID v4** strings in the canonical hyphenated format:
 
-```
+```text
 f47ac10b-58cc-4372-a567-0e02b2c3d479
 ```
 

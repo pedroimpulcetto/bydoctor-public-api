@@ -1,7 +1,7 @@
 ---
-title: "Create Appointment — POST /appointments"
+title: "Create a New Patient Appointment — POST /appointments"
 sidebarTitle: "Create"
-description: "POST /appointments — create a new appointment for a patient with a professional. Optionally send a WhatsApp confirmation."
+description: "Book a new appointment for a patient with a professional at your clinic. Optionally send the patient a WhatsApp confirmation on creation."
 ---
 
 The Create Appointment endpoint lets you book a new appointment slot for a patient with a specific professional at your clinic. You must supply the patient and professional UUIDs, the start and end times in UTC, and optionally the appointment type and internal notes. By default, ByDoctor sends a WhatsApp confirmation to the patient immediately after the appointment is created — set `notify_patient` to `false` if you want to suppress this notification.
@@ -33,7 +33,7 @@ The Create Appointment endpoint lets you book a new appointment slot for a patie
 </ParamField>
 
 <ParamField body="notes" type="string">
-  Free-text internal notes visible to clinic staff. Not shared with the patient.
+  Free-text notes visible to clinic staff. Not shared with the patient.
 </ParamField>
 
 <ParamField body="notify_patient" type="boolean" default={true}>
@@ -75,7 +75,7 @@ The Create Appointment endpoint lets you book a new appointment slot for a patie
 </ResponseField>
 
 <ResponseField name="notes" type="string">
-  Internal notes attached to the appointment. `null` if not provided.
+  Notes attached to the appointment. `null` if not provided.
 </ResponseField>
 
 <ResponseField name="payment_status" type="string">
@@ -181,6 +181,17 @@ curl --request POST \
     "code": "time_slot_conflict",
     "message": "Professional 'pro_01HX9012IJKL' already has an appointment between 2025-07-15T14:00:00Z and 2025-07-15T14:30:00Z.",
     "conflicting_appointment_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+  }
+}
+```
+
+**422 Unprocessable Entity** — The request body is structurally valid but logically inconsistent (for example, `ends_at` is before or equal to `starts_at`).
+
+```json
+{
+  "error": {
+    "code": "unprocessable_entity",
+    "message": "'ends_at' must be strictly after 'starts_at'."
   }
 }
 ```

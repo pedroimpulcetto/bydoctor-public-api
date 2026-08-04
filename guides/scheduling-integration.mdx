@@ -121,6 +121,34 @@ You have two strategies for keeping an external calendar or booking platform ali
     </CodeGroup>
   </Step>
 
+  <Step title="Handle appointment.confirmed → mark the external event as confirmed">
+    When ByDoctor fires `appointment.confirmed`, update the corresponding external calendar event to reflect the confirmed status. This is useful for signalling to staff that the patient has acknowledged the appointment.
+
+    ```javascript
+    if (event === "appointment.confirmed") {
+      const calendar = google.calendar({ version: "v3", auth: getGoogleAuth() });
+
+      const existing = await calendar.events.list({
+        calendarId: "primary",
+        privateExtendedProperty: `bydoctor_id=${appointment.id}`,
+        singleEvents: true,
+      });
+
+      const googleEventId = existing.data.items[0]?.id;
+      if (!googleEventId) return;
+
+      await calendar.events.patch({
+        calendarId: "primary",
+        eventId: googleEventId,
+        requestBody: {
+          summary: `✓ Confirmada — ${appointment.type === "teleconsulta" ? "Teleconsulta" : "Presencial"}`,
+          colorId: "2", // Sage green in Google Calendar
+        },
+      });
+    }
+    ```
+  </Step>
+
   <Step title="Handle appointment.updated → update the external event">
     For `appointment.updated`, fetch the existing external event by the ByDoctor `id` stored in `extendedProperties` and patch only the fields that changed.
 

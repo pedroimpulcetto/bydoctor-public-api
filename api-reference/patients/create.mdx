@@ -1,7 +1,7 @@
 ---
-title: "Create Patient — POST /patients"
+title: "Create a Patient Record — POST /patients | ByDoctor API"
 sidebarTitle: "Create"
-description: "POST /patients — register a new patient in your clinic. Returns the created patient with a unique ID."
+description: "Register a new patient in your clinic. Only the patient's name is required — all other fields can be added later via the Update Patient endpoint."
 ---
 
 The **Create Patient** endpoint registers a new patient record in your clinic. On success, the API returns the full patient object with a generated UUID and timestamps. Only the patient's `name` is required — all other fields are optional and can be added later via the [Update Patient](/api-reference/patients/update) endpoint.
@@ -101,6 +101,7 @@ Send a JSON body with `Content-Type: application/json`.
 | Status | Code | Description |
 |--------|------|-------------|
 | `400 Bad Request` | `invalid_cpf_format` | The `cpf` field does not match the expected format or fails check-digit validation. |
+| `401 Unauthorized` | `unauthorized` | Your API key is missing or invalid. |
 | `409 Conflict` | `cpf_already_exists` | Another patient in your clinic already has the same CPF. |
 
 ## Example Request

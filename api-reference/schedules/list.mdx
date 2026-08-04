@@ -1,7 +1,7 @@
 ---
-title: "List Professional Schedules — GET /schedules"
+title: "List Professional Schedules — GET /schedules | ByDoctor"
 sidebarTitle: "List"
-description: "GET /schedules — list all professionals and their configured working hours in your clinic."
+description: "List all professionals and their configured weekly working hours. Filter by professional ID and paginate with cursor-based pagination."
 ---
 
 The **List Professional Schedules** endpoint returns a paginated collection of schedules for all professionals configured in your clinic. Each schedule describes a professional's working hours broken down by day of the week, their default appointment slot duration, and their timezone. Use this endpoint to display professional availability templates, build configuration UIs, or synchronise schedule data to an external calendar system.
@@ -55,17 +55,19 @@ Authorization: Bearer YOUR_API_KEY
 <ResponseField name="working_hours" type="array" required>
   Array of objects describing the professional's recurring weekly working windows.
 
-  <ResponseField name="working_hours[].day_of_week" type="integer" required>
-    Day of the week as an integer. `0` = Sunday, `1` = Monday, …, `6` = Saturday.
-  </ResponseField>
+  <Expandable title="working_hours item fields">
+    <ResponseField name="working_hours[].day_of_week" type="integer" required>
+      Day of the week as an integer. `0` = Sunday, `1` = Monday, …, `6` = Saturday.
+    </ResponseField>
 
-  <ResponseField name="working_hours[].start_time" type="string" required>
-    Start of the working window in `HH:MM` 24-hour format, expressed in the schedule's `timezone`.
-  </ResponseField>
+    <ResponseField name="working_hours[].start_time" type="string" required>
+      Start of the working window in `HH:MM` 24-hour format, expressed in the schedule's `timezone`.
+    </ResponseField>
 
-  <ResponseField name="working_hours[].end_time" type="string" required>
-    End of the working window in `HH:MM` 24-hour format, expressed in the schedule's `timezone`.
-  </ResponseField>
+    <ResponseField name="working_hours[].end_time" type="string" required>
+      End of the working window in `HH:MM` 24-hour format, expressed in the schedule's `timezone`.
+    </ResponseField>
+  </Expandable>
 </ResponseField>
 
 <ResponseField name="appointment_duration" type="integer" required>
@@ -93,6 +95,12 @@ Authorization: Bearer YOUR_API_KEY
 <Note>
   The `working_hours` array reflects the professional's **configured recurring schedule** in ByDoctor — it does not account for blocked time, holidays, or already-booked appointments. To find real-time open slots for a specific date, use [`GET /schedules/availability`](/api-reference/schedules/availability) instead.
 </Note>
+
+## Error Responses
+
+| Status | Code | Description |
+|--------|------|-------------|
+| `401 Unauthorized` | `unauthorized` | Your API key is missing or invalid. |
 
 ## Example Request
 

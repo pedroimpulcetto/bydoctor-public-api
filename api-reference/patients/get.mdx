@@ -1,7 +1,7 @@
 ---
-title: "Get Patient — GET /patients/{id}"
+title: "Get Patient by ID — GET /patients/{id} | ByDoctor API"
 sidebarTitle: "Get"
-description: "GET /patients/{id} — retrieve a single patient record by UUID, including contact details and health plan."
+description: "Retrieve a single patient record by UUID. Returns all stored contact details, health plan, WhatsApp consent status, and record timestamps."
 ---
 
 The **Get Patient** endpoint fetches the full record of a single patient using their unique UUID. The response includes all stored contact details, health plan information, WhatsApp consent status, and record timestamps. Use this endpoint whenever you need authoritative, up-to-date data for a specific patient before displaying their profile or booking an appointment on their behalf.

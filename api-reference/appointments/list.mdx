@@ -1,12 +1,14 @@
 ---
-title: "List Appointments — GET /appointments"
+title: "Retrieve All Clinic Appointments — GET /appointments"
 sidebarTitle: "List"
-description: "GET /appointments — retrieve a paginated list of appointments for your clinic. Filter by date range, status, and professional."
+description: "Retrieve a cursor-paginated list of appointments for your clinic. Filter by date range, status, professional, patient, or appointment type."
 ---
 
 The List Appointments endpoint returns a cursor-paginated collection of appointments belonging to your clinic. You can narrow results by date range, status, assigned professional, patient, or appointment type, and control the sort order to suit your workflow. Each response includes a `meta` object so you can determine whether more pages exist and fetch them using the `cursor` parameter.
 
 ## Request
+
+**GET** `https://api.bydoctor.com.br/v1/appointments`
 
 <ParamField query="limit" type="integer" default={20}>
   The maximum number of appointment records to return per page. Must be between 1 and 100.
@@ -79,7 +81,7 @@ The List Appointments endpoint returns a cursor-paginated collection of appointm
       Current status: `scheduled`, `confirmed`, `cancelled`, `completed`, or `no_show`.
     </ResponseField>
     <ResponseField name="notes" type="string">
-      Internal notes attached to the appointment. May be `null`.
+      Optional notes attached to the appointment. May be `null`.
     </ResponseField>
     <ResponseField name="payment_status" type="string">
       Payment status: `pending`, `paid`, or `overdue`.
@@ -170,6 +172,18 @@ curl --request GET \
 ```
 
 ## Error Responses
+
+**400 Bad Request** — A query parameter has an invalid value (for example, an unrecognised `status` or a malformed timestamp).
+
+```json
+{
+  "error": {
+    "code": "validation_error",
+    "message": "The value 'unknown' is not a valid status. Accepted values: scheduled, confirmed, cancelled, completed, no_show.",
+    "field": "status"
+  }
+}
+```
 
 **401 Unauthorized** — Your API key is missing or invalid.
 

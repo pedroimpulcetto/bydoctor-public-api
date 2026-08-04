@@ -1,7 +1,7 @@
 ---
-title: "Get Appointment — GET /appointments/{id}"
+title: "Fetch a Single Appointment — GET /appointments/{id}"
 sidebarTitle: "Get"
-description: "GET /appointments/{id} — retrieve a single appointment by its UUID, including full patient and payment details."
+description: "Retrieve a single appointment by its UUID, including its current status, payment details, and video link for teleconsulta appointments."
 ---
 
 The Get Appointment endpoint returns the complete record for a single appointment identified by its UUID. Use this endpoint when you need the full detail view of an appointment — including its current status, payment status, teleconsult URL (if applicable), and all timestamps. This is the canonical way to check whether a booking was confirmed, whether payment was received, or to retrieve the video link to share with a patient before a teleconsulta.
@@ -49,7 +49,7 @@ The Get Appointment endpoint returns the complete record for a single appointmen
 </ResponseField>
 
 <ResponseField name="notes" type="string">
-  Internal notes attached to the appointment. `null` if none were added.
+  Notes attached to the appointment. `null` if none were added.
 </ResponseField>
 
 <ResponseField name="payment_status" type="string">
@@ -102,6 +102,17 @@ curl --request GET \
 ```
 
 ## Error Responses
+
+**400 Bad Request** — The `id` path parameter is not a valid UUID format.
+
+```json
+{
+  "error": {
+    "code": "validation_error",
+    "message": "The value 'not-a-uuid' is not a valid appointment UUID."
+  }
+}
+```
 
 **401 Unauthorized** — Your API key is missing or invalid.
 
