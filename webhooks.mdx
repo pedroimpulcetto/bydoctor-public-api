@@ -61,7 +61,7 @@ Se seu endpoint não responder `2xx`, o ByDoctor tenta novamente seguindo esta e
 
 `1 min → 5 min → 30 min → 2 h → 6 h`
 
-Cada "falha" nessa contagem é uma entrega que já esgotou as 6 tentativas da escala acima (cerca de 8h40 de tentativas) — não uma única resposta ruim. Após **20 falhas consecutivas** (ou seja, ~20 entregas seguidas totalmente esgotadas — uma indisponibilidade sustentada do seu receptor, não um erro pontual), o endpoint é **desativado automaticamente** e os administradores da clínica são notificados por e-mail. Um endpoint desativado não recebe novos eventos até ser reativado manualmente em **Minha Clínica → API e Webhooks**.
+Cada "falha" nessa contagem é uma entrega que já esgotou as 6 tentativas da escala acima (cerca de 8h36 de tentativas) — não uma única resposta ruim. Após **20 falhas consecutivas** (ou seja, ~20 entregas seguidas totalmente esgotadas — uma indisponibilidade sustentada do seu receptor, não um erro pontual), o endpoint é **desativado automaticamente** e os administradores da clínica são notificados por e-mail. Um endpoint desativado não recebe novos eventos até ser reativado manualmente em **Minha Clínica → API e Webhooks**.
 
 ## Evento de teste (ping)
 
