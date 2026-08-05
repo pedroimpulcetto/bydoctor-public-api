@@ -36,3 +36,61 @@ View the local preview at `http://localhost:3000`.
 ## Publishing
 
 The repo owner connects the Mintlify GitHub app and the `docs.bydoctor.com.br` custom domain from the Mintlify dashboard. Changes deploy automatically after pushing to the default branch — this repo does not have its own CI/CD.
+
+## Cutover
+
+`docs.bydoctor.com.br` currently serves `origin/main` at `d638ccc` — a pre-launch,
+AI-generated English draft that documents an API ByDoctor does not have: write
+endpoints on appointments, plus `/patients`, `/payments` and `/schedules`
+resources, with patient records described as readable and writable. It also
+publishes 248 scraped marketing files under `sources/` and the generator's
+`.atlas-analysis.json`, both reachable by direct URL. Replacing it is the point
+of this branch.
+
+**A plain merge does not do that.** `feat/public-api-docs` forked from the
+initial commit, not from `main`, so the two histories only share the Mintlify
+starter kit. Merging unions the trees: the result is 295 files that keep every
+stale page (verify with `git merge-tree --write-tree feat/public-api-docs origin/main`).
+The pt-BR docs would sit alongside the invented endpoints rather than replace them.
+
+Make `main` match this branch exactly instead:
+
+```bash
+git switch feat/public-api-docs
+git merge -s ours origin/main -m "docs: replace the pre-launch draft with the pt-BR public API reference"
+git push origin feat/public-api-docs:main
+```
+
+`-s ours` records `main` as a parent while keeping this branch's tree verbatim,
+so the stale files leave the published site in one deploy. Nothing is lost —
+the old content stays reachable at `d638ccc` (`git show d638ccc:introduction.mdx`).
+
+Order matters: **deploy the docs before enabling the public API for clinics.**
+The live site advertises patient and payment endpoints today, so anyone reading
+it now is being pointed at routes that will 404.
+
+### Before pushing
+
+- Run `mint broken-links`, and `mint dev` to spot-check the redirects.
+- Confirm in the Mintlify dashboard that the connected repo/branch is this repo's
+  default branch — the live content matches `origin/main`, but confirm rather than assume.
+
+### After deploying
+
+- `curl -s https://docs.bydoctor.com.br/llms.txt` — it regenerates from the new
+  navigation and should list only the pt-BR pages. Until it does, AI assistants
+  keep citing the invented endpoints.
+- Spot-check a few redirects, e.g. `/api-reference/patients/list` and
+  `/introduction`, and confirm `/sources/site/bydoctor.com.br/alternativas` and
+  `/.atlas-analysis.json` no longer serve content.
+
+The `docs.json` `redirects` block maps every old URL onto its closest pt-BR page.
+Two constraints on editing it:
+
+- The generated OpenAPI pages live under `/api-reference/appointments/` (e.g.
+  `listar-agendamentos`, slugged from the operation summaries in
+  `api-bydoctor`'s `PublicAppointmentViewSet.schema_summaries`). Redirects in
+  that namespace are exact paths on purpose — a wildcard, or even a
+  `/api-reference/appointments/list*` prefix, would shadow the real pages.
+- Each old page is redirected twice, once bare and once with `.md`, because the
+  live `llms.txt` advertises the `.md` URLs and those are what AI crawlers hold.

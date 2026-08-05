@@ -10,7 +10,7 @@ A API expõe dois endpoints, ambos somente leitura:
 | `GET` | `/appointments` | Lista agendamentos, com filtros e paginação |
 | `GET` | `/appointments/{id}` | Detalhe de um agendamento específico |
 
-Nenhuma rota tem barra final. Na referência da API gerada a partir do OpenAPI, o parâmetro de rota da URL de detalhe aparece como `public_id` — é o mesmo valor do campo `id` no corpo da resposta, o identificador público do agendamento (veja [Identificador](#identificador) abaixo).
+Nenhuma rota tem barra final. Na referência da API gerada a partir do OpenAPI, o parâmetro de rota da URL de detalhe aparece como `public_id` — é o mesmo valor do campo `id` no corpo da resposta, o identificador do agendamento (veja [Identificador](#identificador) abaixo).
 
 ## Listar agendamentos
 
@@ -97,6 +97,6 @@ Devolve o mesmo objeto de agendamento mostrado acima. Um `id` inexistente ou de 
 
 ## Identificador
 
-O `id` de um agendamento é um **UUID** — é o identificador público do agendamento e o único valor aceito na URL de detalhe. A chave primária interna (inteira) do agendamento nunca é exposta; armazene o UUID como chave estrangeira do agendamento no seu sistema — ele é estável entre chamadas e entre eventos de webhook.
+O `id` de um agendamento é um **UUID** — é o identificador do agendamento na API e o único valor aceito na URL de detalhe. Armazene o UUID como chave estrangeira do agendamento no seu sistema — ele é estável entre chamadas e entre eventos de webhook.
 
-Isso não vale para os objetos aninhados: `patient.id`, `professional.id` e `room.id` **são** as chaves primárias internas (inteiras) do paciente, do profissional e da sala, expostas de propósito porque são os mesmos valores aceitos pelos filtros `patient_id`, `professional_id` e `room_id`. Se você pretende filtrar por eles depois, guarde esses valores também.
+Os objetos aninhados usam identificadores próprios: `patient.id`, `professional.id` e `room.id` são numéricos, os mesmos valores aceitos pelos filtros `patient_id`, `professional_id` e `room_id`. Se você pretende filtrar por eles depois, guarde esses valores também.

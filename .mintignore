@@ -5,3 +5,20 @@
 # Draft content
 drafts/
 *.draft.mdx
+
+# Internal contributor instructions — not documentation content
+AGENTS.md
+
+# Safety net for the cutover (see README "Cutover"). These are the pre-launch
+# AI-generated draft's files. The cutover removes them from the tree outright;
+# these rules only matter if someone lands them again via a plain merge of the
+# old main, which would otherwise republish endpoints that do not exist.
+sources/
+.atlas-analysis.json
+api-reference/
+concepts/
+guides/
+introduction.mdx
+quickstart.mdx
+authentication.mdx
+webhooks/

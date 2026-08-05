@@ -209,7 +209,7 @@
     }
   },
   "info": {
-    "description": "API REST somente leitura de agendamentos e webhooks em tempo real para integrações de clínicas (ADR-014).",
+    "description": "API REST somente leitura de agendamentos e webhooks em tempo real para integrações de clínicas.",
     "title": "ByDoctor Public API",
     "version": "v1"
   },
@@ -338,7 +338,7 @@
     },
     "/api/public/v1/appointments/{public_id}": {
       "get": {
-        "description": "Retorna um único agendamento pelo seu `id` (UUID). Este é o único identificador público — guarde-o como chave estrangeira do seu lado.",
+        "description": "Retorna um único agendamento pelo seu `id` (UUID) — guarde-o como chave estrangeira do agendamento no seu sistema.",
         "operationId": "appointments_retrieve",
         "parameters": [
           {

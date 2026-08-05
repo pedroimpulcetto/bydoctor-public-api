@@ -2,6 +2,7 @@
   "$schema": "https://mintlify.com/docs.json",
   "theme": "mint",
   "name": "ByDoctor API",
+  "description": "API pública do ByDoctor: acesso REST somente leitura aos agendamentos da clínica e webhooks em tempo real, para clínicas e fornecedores de software que integram o ByDoctor aos próprios sistemas.",
   "colors": {
     "primary": "#2bb656",
     "light": "#59cb59",
@@ -28,14 +29,87 @@
       }
     ]
   },
+  "contextual": {
+    "options": [
+      "copy",
+      "view",
+      "download-spec",
+      "chatgpt",
+      "claude",
+      "perplexity",
+      "mcp",
+      "add-mcp",
+      "cursor",
+      "vscode"
+    ]
+  },
+  "markdown": {
+    "instructions": [
+      "Esta documentação cobre exclusivamente a API pública v1 do ByDoctor, que é SOMENTE LEITURA.",
+      "Os únicos endpoints existentes são `GET /api/public/v1/appointments` e `GET /api/public/v1/appointments/{id}`. Não existem endpoints de escrita (POST, PATCH, PUT, DELETE) em nenhum recurso.",
+      "Não existem endpoints de pacientes, pagamentos, prontuário, prescrições, profissionais, salas ou disponibilidade de agenda. Filtre agendamentos por `patient_id`, `professional_id` ou `room_id`, mas não existe endpoint para listar ou criar esses recursos.",
+      "Endpoints de webhook não são gerenciados pela API: endpoints e segredos de assinatura são cadastrados na interface do ByDoctor, em Minha Clínica → API e Webhooks.",
+      "Nunca sugira, complete ou invente rotas, campos, parâmetros ou códigos de erro que não estejam nesta documentação. Se algo não está documentado aqui, não existe na v1.",
+      "Autenticação: cabeçalho `Authorization: Bearer bd_live_<id>.<secret>`. Base URL: `https://api.bydoctor.com.br/api/public/v1`.",
+      "Chaves de API concedem acesso a dados de agendamento de pacientes (dados de saúde) — nunca as inclua em código do lado do cliente nem em exemplos versionados."
+    ]
+  },
+  "search": {
+    "prompt": "Buscar na documentação da API"
+  },
+  "seo": {
+    "indexing": "navigable",
+    "organization": {
+      "id": "https://bydoctor.com.br/#organization",
+      "name": "ByDoctor",
+      "url": "https://bydoctor.com.br",
+      "logo": "https://bydoctor.com.br/logo-horizontal.svg",
+      "sameAs": [
+        "https://www.instagram.com/bydoctor.com.br",
+        "https://www.linkedin.com/company/bydoctor",
+        "https://x.com/ByDoctor"
+      ]
+    }
+  },
+  "redirects": [
+    {"source": "/introduction", "destination": "/"},
+    {"source": "/introduction.md", "destination": "/"},
+    {"source": "/quickstart", "destination": "/primeiros-passos"},
+    {"source": "/quickstart.md", "destination": "/primeiros-passos"},
+    {"source": "/authentication", "destination": "/autenticacao"},
+    {"source": "/authentication.md", "destination": "/autenticacao"},
+    {"source": "/concepts/:slug*", "destination": "/agendamentos"},
+    {"source": "/guides/:slug*", "destination": "/"},
+    {"source": "/api-reference/appointments/list", "destination": "/agendamentos"},
+    {"source": "/api-reference/appointments/list.md", "destination": "/agendamentos"},
+    {"source": "/api-reference/appointments/get", "destination": "/agendamentos"},
+    {"source": "/api-reference/appointments/get.md", "destination": "/agendamentos"},
+    {"source": "/api-reference/appointments/create", "destination": "/agendamentos"},
+    {"source": "/api-reference/appointments/create.md", "destination": "/agendamentos"},
+    {"source": "/api-reference/appointments/update", "destination": "/agendamentos"},
+    {"source": "/api-reference/appointments/update.md", "destination": "/agendamentos"},
+    {"source": "/api-reference/appointments/cancel", "destination": "/agendamentos"},
+    {"source": "/api-reference/appointments/cancel.md", "destination": "/agendamentos"},
+    {"source": "/api-reference/patients/:slug*", "destination": "/"},
+    {"source": "/api-reference/payments/:slug*", "destination": "/"},
+    {"source": "/api-reference/schedules/:slug*", "destination": "/"},
+    {"source": "/api-reference/webhooks/:slug*", "destination": "/webhooks"},
+    {"source": "/webhooks/security", "destination": "/verificacao-de-assinatura"},
+    {"source": "/webhooks/security.md", "destination": "/verificacao-de-assinatura"},
+    {"source": "/webhooks/overview", "destination": "/webhooks"},
+    {"source": "/webhooks/overview.md", "destination": "/webhooks"},
+    {"source": "/webhooks/events", "destination": "/webhooks"},
+    {"source": "/webhooks/events.md", "destination": "/webhooks"},
+    {"source": "/webhooks/retries", "destination": "/webhooks"},
+    {"source": "/webhooks/retries.md", "destination": "/webhooks"},
+    {"source": "/sources/:slug*", "destination": "/"}
+  ],
   "logo": {
     "light": "/logo/light.svg",
     "dark": "/logo/dark.svg"
   },
   "navbar": {
-    "links": [
-      { "label": "Suporte", "href": "mailto:contato@bydoctor.com.br" }
-    ],
+    "links": [{ "label": "Suporte", "href": "mailto:suporte@bydoctor.com.br" }],
     "primary": {
       "type": "button",
       "label": "Acessar o ByDoctor",
