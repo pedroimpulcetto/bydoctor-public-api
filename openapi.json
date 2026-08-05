@@ -1,0 +1,372 @@
+{
+  "components": {
+    "schemas": {
+      "ModalityEnum": {
+        "description": "* `in_person` - Presencial\n* `telehealth` - Teleconsulta",
+        "enum": [
+          "in_person",
+          "telehealth"
+        ],
+        "type": "string"
+      },
+      "PaginatedPublicAppointmentList": {
+        "properties": {
+          "next": {
+            "example": "http://api.example.org/accounts/?cursor=cD00ODY%3D\"",
+            "format": "uri",
+            "nullable": true,
+            "type": "string"
+          },
+          "previous": {
+            "example": "http://api.example.org/accounts/?cursor=cj0xJnA9NDg3",
+            "format": "uri",
+            "nullable": true,
+            "type": "string"
+          },
+          "results": {
+            "items": {
+              "$ref": "#/components/schemas/PublicAppointment"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "results"
+        ],
+        "type": "object"
+      },
+      "PatientSummary": {
+        "description": "Shape of `PublicAppointmentSerializer.patient`. Schema-only, see `get_patient`.",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "phone": {
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "phone"
+        ],
+        "type": "object"
+      },
+      "ProfessionalSummary": {
+        "description": "Shape of `PublicAppointmentSerializer.professional`. Schema-only —\nnever instantiated for actual (de)serialization, see `get_professional`.",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "specialty": {
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "specialty"
+        ],
+        "type": "object"
+      },
+      "PublicAppointment": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "readOnly": true,
+            "type": "string"
+          },
+          "end_at": {
+            "format": "date-time",
+            "readOnly": true,
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "nullable": true,
+            "readOnly": true,
+            "type": "string"
+          },
+          "modality": {
+            "$ref": "#/components/schemas/ModalityEnum"
+          },
+          "origin": {
+            "type": "string"
+          },
+          "patient": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PatientSummary"
+              }
+            ],
+            "nullable": true,
+            "readOnly": true
+          },
+          "professional": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ProfessionalSummary"
+              }
+            ],
+            "nullable": true,
+            "readOnly": true
+          },
+          "room": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/RoomSummary"
+              }
+            ],
+            "nullable": true,
+            "readOnly": true
+          },
+          "start_at": {
+            "format": "date-time",
+            "readOnly": true,
+            "type": "string"
+          },
+          "status": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/StatusEnum"
+              }
+            ],
+            "description": "One of: requested, scheduled, confirmed, checked_in, completed, no_show, cancelled.",
+            "readOnly": true
+          },
+          "updated_at": {
+            "format": "date-time",
+            "readOnly": true,
+            "type": "string"
+          }
+        },
+        "required": [
+          "created_at",
+          "end_at",
+          "id",
+          "modality",
+          "origin",
+          "patient",
+          "professional",
+          "room",
+          "start_at",
+          "status",
+          "updated_at"
+        ],
+        "type": "object"
+      },
+      "RoomSummary": {
+        "description": "Shape of `PublicAppointmentSerializer.room`. Schema-only, see `get_room`.",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ],
+        "type": "object"
+      },
+      "StatusEnum": {
+        "enum": [
+          "requested",
+          "scheduled",
+          "confirmed",
+          "checked_in",
+          "completed",
+          "no_show",
+          "cancelled"
+        ],
+        "type": "string"
+      }
+    },
+    "securitySchemes": {
+      "ApiKeyAuth": {
+        "description": "Chave de API no formato bd_live_xxxxxxxx.xxxx...",
+        "scheme": "bearer",
+        "type": "http"
+      }
+    }
+  },
+  "info": {
+    "description": "API REST somente leitura de agendamentos e webhooks em tempo real para integrações de clínicas (ADR-014).",
+    "title": "ByDoctor Public API",
+    "version": "v1"
+  },
+  "openapi": "3.0.3",
+  "paths": {
+    "/api/public/v1/appointments": {
+      "get": {
+        "operationId": "appointments_list",
+        "parameters": [
+          {
+            "description": "The pagination cursor value.",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "end_date",
+            "schema": {
+              "format": "date",
+              "type": "string"
+            }
+          },
+          {
+            "description": "* `in_person` - Presencial\n* `telehealth` - Teleconsulta",
+            "in": "query",
+            "name": "modality",
+            "schema": {
+              "enum": [
+                "in_person",
+                "telehealth"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Number of results to return per page.",
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "patient_id",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "professional_id",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "room_id",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "start_date",
+            "schema": {
+              "format": "date",
+              "type": "string"
+            }
+          },
+          {
+            "description": "One of: requested, scheduled, confirmed, checked_in, completed, no_show, cancelled.",
+            "in": "query",
+            "name": "status",
+            "schema": {
+              "enum": [
+                "cancelled",
+                "checked_in",
+                "completed",
+                "confirmed",
+                "no_show",
+                "requested",
+                "scheduled"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "updated_since",
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaginatedPublicAppointmentList"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "tags": [
+          "appointments"
+        ]
+      }
+    },
+    "/api/public/v1/appointments/{public_id}": {
+      "get": {
+        "operationId": "appointments_retrieve",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "public_id",
+            "required": true,
+            "schema": {
+              "pattern": "^[0-9a-fA-F-]{36}$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicAppointment"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "tags": [
+          "appointments"
+        ]
+      }
+    }
+  },
+  "servers": [
+    {
+      "description": "Produção",
+      "url": "https://api.bydoctor.com.br"
+    }
+  ]
+}
