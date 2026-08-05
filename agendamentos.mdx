@@ -1,0 +1,89 @@
+---
+title: "Agendamentos"
+description: "Endpoints de listagem e detalhe, filtros disponíveis e paginação por cursor."
+---
+
+A API expõe dois endpoints, ambos somente leitura:
+
+| Método | Rota | Descrição |
+|---|---|---|
+| `GET` | `/appointments` | Lista agendamentos, com filtros e paginação |
+| `GET` | `/appointments/{id}` | Detalhe de um agendamento específico |
+
+Nenhuma rota tem barra final. O `id` na URL de detalhe é o identificador público do agendamento — veja [Identificador](#identificador) abaixo.
+
+## Listar agendamentos
+
+```bash
+curl -H "Authorization: Bearer bd_live_xxxxxxxx.yyyy" \
+  "https://api.bydoctor.com.br/api/public/v1/appointments?start_date=2026-08-01&end_date=2026-08-31&status=confirmed"
+```
+
+### Filtros
+
+| Parâmetro | Tipo | Descrição |
+|---|---|---|
+| `start_date` | `date` | Início da janela (inclusivo). Combinado com `end_date`, a janela não pode exceder **92 dias**. |
+| `end_date` | `date` | Fim da janela (inclusivo). |
+| `status` | `string` | Um de: `requested`, `scheduled`, `confirmed`, `checked_in`, `completed`, `no_show`, `cancelled`. |
+| `professional_id` | `integer` | Filtra pelo profissional. |
+| `patient_id` | `integer` | Filtra pelo paciente. |
+| `room_id` | `integer` | Filtra pela sala. |
+| `modality` | `string` | `in_person` ou `telehealth`. |
+| `updated_since` | `datetime` (ISO 8601) | Retorna apenas agendamentos atualizados a partir deste instante. Veja [Sincronização](/sincronizacao). |
+| `cursor` | `string` | Cursor de paginação — use o valor devolvido em `next`, não construa manualmente. |
+| `page_size` | `integer` | Itens por página, máximo **100**. |
+
+### Paginação por cursor
+
+A paginação é por cursor, não por número de página. A resposta traz `next` (e `previous`) como URLs prontas — siga `next` até que ele venha `null`; não tente calcular offsets ou montar o cursor você mesmo.
+
+```json
+{
+  "next": "https://api.bydoctor.com.br/api/public/v1/appointments?cursor=cD00ODY%3D&start_date=2026-08-01&end_date=2026-08-31",
+  "previous": null,
+  "results": [
+    {
+      "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+      "status": "confirmed",
+      "modality": "in_person",
+      "origin": "patient_booking",
+      "start_at": "2026-08-10T14:00:00-03:00",
+      "end_at": "2026-08-10T14:30:00-03:00",
+      "created_at": "2026-08-01T09:12:00-03:00",
+      "updated_at": "2026-08-05T08:00:00-03:00",
+      "patient": {
+        "id": 981,
+        "name": "Maria Silva",
+        "phone": "+5511999998888"
+      },
+      "professional": {
+        "id": 12,
+        "name": "Dr. João Souza",
+        "specialty": "Cardiologia"
+      },
+      "room": {
+        "id": 3,
+        "name": "Sala 2"
+      }
+    }
+  ]
+}
+```
+
+`patient`, `professional` e `room` podem vir `null` — por exemplo, uma teleconsulta não tem sala associada.
+
+`origin` indica como o agendamento foi criado: `staff` (equipe da clínica) ou `patient_booking` (agendamento online feito pelo paciente).
+
+## Buscar um agendamento
+
+```bash
+curl -H "Authorization: Bearer bd_live_xxxxxxxx.yyyy" \
+  "https://api.bydoctor.com.br/api/public/v1/appointments/3fa85f64-5717-4562-b3fc-2c963f66afa6"
+```
+
+Devolve o mesmo objeto de agendamento mostrado acima. Um `id` inexistente ou de outra clínica responde `404 Not Found`.
+
+## Identificador
+
+O `id` de um agendamento é um **UUID** — é o único identificador exposto publicamente. As chaves primárias internas (inteiras) do ByDoctor nunca aparecem na API pública. Armazene o `id` (UUID) como chave estrangeira no seu sistema; ele é estável entre chamadas e entre eventos de webhook para o mesmo agendamento.

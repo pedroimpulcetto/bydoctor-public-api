@@ -1,0 +1,54 @@
+---
+title: "Verificação de assinatura"
+description: "Como validar que um evento de webhook realmente veio do ByDoctor, seguindo o padrão Standard Webhooks."
+---
+
+Toda entrega de webhook do ByDoctor é assinada seguindo o padrão [Standard Webhooks](https://www.standardwebhooks.com), usando três cabeçalhos:
+
+| Cabeçalho | Conteúdo |
+|---|---|
+| `webhook-id` | O mesmo valor do `id` do envelope (`evt_<uuid>`). |
+| `webhook-timestamp` | Instante do envio, em segundos desde a epoch Unix. |
+| `webhook-signature` | Assinatura HMAC do corpo, codificada conforme o padrão Standard Webhooks. |
+
+O segredo de assinatura (`whsec_...`) é exibido **uma única vez**, no momento em que você cria o endpoint em **Minha clínica → API e Webhooks**. Guarde-o em um cofre de segredos — se for perdido, gere um novo endpoint ou solicite a rotação do segredo.
+
+## Verifique com a biblioteca oficial
+
+Não reimplemente a comparação de assinatura — use a biblioteca `standardwebhooks`, disponível para várias linguagens, que faz a verificação em tempo constante.
+
+<CodeGroup>
+```python Python
+# pip install standardwebhooks
+from standardwebhooks.webhooks import Webhook
+
+wh = Webhook("whsec_...")  # segredo exibido na criação do endpoint
+payload = wh.verify(request_body_bytes, {
+    "webhook-id": headers["webhook-id"],
+    "webhook-timestamp": headers["webhook-timestamp"],
+    "webhook-signature": headers["webhook-signature"],
+})
+```
+
+```javascript Node
+// npm install standardwebhooks
+const { Webhook } = require("standardwebhooks");
+
+const wh = new Webhook("whsec_...");
+const payload = wh.verify(rawBody, {
+  "webhook-id": headers["webhook-id"],
+  "webhook-timestamp": headers["webhook-timestamp"],
+  "webhook-signature": headers["webhook-signature"],
+});
+```
+</CodeGroup>
+
+`verify()` lança uma exceção se a assinatura não bater ou se o timestamp estiver fora da janela de tolerância — trate a exceção como um evento inválido e rejeite a requisição.
+
+<Warning>
+  Verifique a assinatura sobre o **corpo bruto (raw) da requisição**, nunca sobre um objeto reserializado. Frameworks que fazem parse do JSON antes da sua rota receber a requisição podem mudar a ordem das chaves ou o espaçamento — e qualquer diferença de byte quebra a assinatura. Capture o corpo bruto antes de qualquer middleware de parsing tocar nele.
+
+  A comparação da assinatura já é feita em tempo constante dentro da biblioteca — não reimplemente essa lógica.
+
+  Rejeite qualquer payload não verificado **antes** de tocar no seu banco de dados.
+</Warning>

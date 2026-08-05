@@ -1,0 +1,46 @@
+---
+title: "Autenticação"
+description: "Formato da chave de API, escopos, limites de uso e boas práticas de segurança."
+---
+
+## Formato da chave
+
+Toda chamada à API pública é autenticada com uma chave de API no cabeçalho `Authorization`, usando o esquema `Bearer`:
+
+```
+Authorization: Bearer bd_live_<id>.<secret>
+```
+
+A chave tem duas partes separadas por um ponto: um identificador de prefixo (`bd_live_<id>`) e um segredo (`<secret>`). Ambas juntas formam a credencial completa.
+
+<Warning>
+  A chave é exibida **uma única vez**, no momento da criação, em **Minha clínica → API e Webhooks**. O ByDoctor armazena apenas o hash — não é possível recuperar uma chave perdida. Se isso acontecer, revogue a chave antiga e crie uma nova.
+</Warning>
+
+## Escopos
+
+Chaves de API são criadas com o escopo `appointments:read`, que concede acesso de leitura aos endpoints de agendamentos. Não existe, na v1, escopo de escrita — a API é somente leitura.
+
+## Revogação
+
+Revogar uma chave em **Minha clínica → API e Webhooks** tem efeito **imediato**: a próxima requisição com essa chave recebe `401 Unauthorized`. Não há período de carência.
+
+## Limites de uso (rate limits)
+
+Cada chave está sujeita a dois limites, aplicados de forma independente:
+
+| Limite | Valor |
+|---|---|
+| Por minuto | 60 requisições |
+| Por dia | 10.000 requisições |
+
+Ao exceder um dos limites, a API responde `429 Too Many Requests`. Implemente backoff e nova tentativa; não faça polling agressivo — para manter uma cópia local em dia, prefira a receita de [sincronização](/sincronizacao) combinada com webhooks.
+
+## Segurança
+
+Uma chave de API concede acesso a dados de agendamento de pacientes. Trate-a como qualquer outro segredo de produção:
+
+- Armazene em um cofre de segredos (secrets manager), nunca em código-fonte versionado.
+- Nunca exponha a chave em código do lado do cliente (browser, app mobile) — toda chamada deve partir de um backend seu.
+- Nunca faça commit da chave em um repositório git, mesmo privado.
+- Revogue e recrie a chave se suspeitar de exposição.

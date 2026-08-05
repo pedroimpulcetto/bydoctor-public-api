@@ -1,0 +1,38 @@
+---
+title: "Sincronização"
+description: "Como manter uma cópia local da agenda em dia usando updated_since e webhooks."
+---
+
+Se você mantém uma cópia local dos agendamentos da clínica (para um BI, um CRM ou qualquer sistema próprio), a forma correta de mantê-la em dia combina **webhooks para latência baixa** com **polling como rede de segurança**.
+
+## A receita de polling
+
+<Steps>
+  <Step title="Guarde o instante da última sincronização bem-sucedida">
+    Persista um timestamp (`updated_since`) toda vez que uma sincronização terminar com sucesso — não a hora de início, a hora em que você confirmou ter processado tudo.
+  </Step>
+  <Step title="Consulte com updated_since">
+    ```bash
+    curl -H "Authorization: Bearer bd_live_xxxxxxxx.yyyy" \
+      "https://api.bydoctor.com.br/api/public/v1/appointments?updated_since=2026-08-04T08:00:00-03:00"
+    ```
+  </Step>
+  <Step title="Siga next até esgotar">
+    Continue seguindo o cursor `next` da resposta até que ele venha `null`. Só então a sincronização está completa — parar no meio de uma página deixa agendamentos para trás.
+  </Step>
+  <Step title="Avance o timestamp salvo">
+    Somente depois de esgotar todas as páginas, atualize o `updated_since` salvo para o instante em que esta sincronização começou (não o de agora — chamadas concorrentes na clínica podem ter criado agendamentos entre o início e o fim da sua sincronização).
+  </Step>
+</Steps>
+
+## Cancelamentos não desaparecem
+
+Um agendamento cancelado **continua aparecendo** nos resultados, com `status: "cancelled"` — ele não é removido da resposta. Uma sincronização que trata "ausência na lista" como "foi excluído" vai ficar errada: agendamentos fora da janela de datas ou de status filtrados simplesmente não aparecem por não corresponderem ao filtro, o que é diferente de terem sido cancelados.
+
+Para refletir cancelamentos na sua cópia local, atualize o registro para `status: "cancelled"` quando ele vier assim — não o exclua.
+
+## Webhooks como complemento, não substituto
+
+Use [webhooks](/webhooks) para reagir a mudanças quase em tempo real: eles chegam em segundos, não minutos. Mas a entrega é **pelo menos uma vez** e depende do seu endpoint estar no ar — se ele cair por um tempo, alguns eventos podem se esgotar antes de você voltar a responder `2xx` (veja a política de reentrega em [Webhooks](/webhooks)).
+
+Por isso, trate o polling com `updated_since` como a rede de segurança: mesmo que um webhook se perca, a próxima sincronização periódica fecha a lacuna. Uma sincronização a cada poucos minutos, combinada com webhooks para a experiência em tempo real, cobre os dois casos.

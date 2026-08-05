@@ -1,0 +1,70 @@
+---
+title: "Webhooks"
+description: "O envelope de evento, os três tipos de evento, entrega pelo menos uma vez e a política de reentrega."
+---
+
+Webhooks notificam seu sistema em tempo real quando um agendamento muda, sem que você precise fazer polling constante. Registre um endpoint HTTPS público em **Minha clínica → API e Webhooks** e escolha os eventos de interesse.
+
+## O envelope
+
+Todo evento chega no corpo da requisição `POST` nesse formato:
+
+```json
+{
+  "id": "evt_<uuid>",
+  "type": "appointment.created",
+  "created_at": "2026-08-02T10:31:00-03:00",
+  "api_version": "v1",
+  "company_id": 42,
+  "data": { "...": "mesmo formato do GET /appointments/{id}" }
+}
+```
+
+| Campo | Descrição |
+|---|---|
+| `id` | Identificador do evento, no formato `evt_<uuid>`. **Estável entre reentregas** — a mesma tentativa de evento sempre chega com o mesmo `id`. |
+| `type` | Um dos três tipos de evento abaixo. |
+| `created_at` | Instante em que o evento foi gerado (ISO 8601, `America/Sao_Paulo`). |
+| `api_version` | Versão do contrato público — hoje sempre `"v1"`. |
+| `company_id` | Identificador da clínica dona do agendamento. |
+| `data` | O agendamento completo, no mesmo formato do `GET /appointments/{id}` — veja [Agendamentos](/agendamentos). |
+
+## Tipos de evento
+
+| Evento | Disparado quando |
+|---|---|
+| `appointment.created` | Um novo agendamento é criado (pela equipe ou via agendamento online do paciente). |
+| `appointment.updated` | Um agendamento existente muda — horário, status, profissional, sala, modalidade etc. |
+| `appointment.cancelled` | Um agendamento é cancelado. |
+
+Um endpoint só recebe os eventos aos quais está inscrito.
+
+## Entrega pelo menos uma vez (at-least-once)
+
+A entrega é **pelo menos uma vez**: o mesmo evento pode chegar mais de uma vez ao seu endpoint — por exemplo, se sua resposta demorar demais e a tentativa for considerada falha antes de você terminar de processá-la. O `id` do envelope é estável entre essas reentregas.
+
+<Warning>
+  **Faça a deduplicação pelo `id` do envelope** e garanta que processar o mesmo evento duas vezes seja seguro (idempotente). Nunca assuma que cada `id` chega exatamente uma vez.
+</Warning>
+
+## Responda rápido, processe depois
+
+Responda `2xx` em até **10 segundos**. Se o processamento do evento (gravar no seu banco, disparar outras integrações) demorar mais que isso, enfileire o trabalho e responda `2xx` imediatamente após validar a assinatura — processe de forma assíncrona depois.
+
+## Política de reentrega
+
+Se seu endpoint não responder `2xx`, o ByDoctor tenta novamente seguindo esta escala:
+
+`1 min → 5 min → 30 min → 2 h → 6 h`
+
+Após **20 falhas consecutivas de entrega**, o endpoint é **desativado automaticamente** e os administradores da clínica são notificados por e-mail. Um endpoint desativado não recebe novos eventos até ser reativado manualmente em **Minha clínica → API e Webhooks**.
+
+## Evento de teste (ping)
+
+Ao cadastrar ou editar um endpoint, use o botão de teste na interface do ByDoctor para disparar um evento `ping` — ele segue o mesmo envelope e a mesma assinatura de um evento real, mas com `data` vazio, útil para validar que seu endpoint está no ar e verificando assinaturas corretamente antes de assinar eventos de produção.
+
+## Próximo passo
+
+<Card title="Verificação de assinatura" icon="shield-check" href="/verificacao-de-assinatura">
+  Valide que cada evento realmente veio do ByDoctor antes de confiar nele.
+</Card>
