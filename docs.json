@@ -36,11 +36,7 @@
       "download-spec",
       "chatgpt",
       "claude",
-      "perplexity",
-      "mcp",
-      "add-mcp",
-      "cursor",
-      "vscode"
+      "perplexity"
     ]
   },
   "markdown": {
