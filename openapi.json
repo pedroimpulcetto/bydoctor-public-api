@@ -209,6 +209,7 @@
   "paths": {
     "/api/public/v1/appointments": {
       "get": {
+        "description": "Retorna os agendamentos da clínica, do mais recente para o mais antigo, com paginação por cursor. Use `updated_since` para sincronizar apenas o que mudou desde a última consulta: agendamentos cancelados continuam aparecendo com `status: \"cancelled\"` em vez de desaparecerem da lista.",
         "operationId": "appointments_list",
         "parameters": [
           {
@@ -321,6 +322,7 @@
             "ApiKeyAuth": []
           }
         ],
+        "summary": "Listar agendamentos",
         "tags": [
           "appointments"
         ]
@@ -328,6 +330,7 @@
     },
     "/api/public/v1/appointments/{public_id}": {
       "get": {
+        "description": "Retorna um único agendamento pelo seu `id` (UUID). Este é o único identificador público — guarde-o como chave estrangeira do seu lado.",
         "operationId": "appointments_retrieve",
         "parameters": [
           {
@@ -357,6 +360,7 @@
             "ApiKeyAuth": []
           }
         ],
+        "summary": "Consultar um agendamento",
         "tags": [
           "appointments"
         ]
