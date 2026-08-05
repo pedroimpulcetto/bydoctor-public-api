@@ -12,13 +12,13 @@
       "PaginatedPublicAppointmentList": {
         "properties": {
           "next": {
-            "example": "http://api.example.org/accounts/?cursor=cD00ODY%3D\"",
+            "example": "https://api.bydoctor.com.br/api/public/v1/appointments?cursor=cD00ODY%3D",
             "format": "uri",
             "nullable": true,
             "type": "string"
           },
           "previous": {
-            "example": "http://api.example.org/accounts/?cursor=cj0xJnA9NDg3",
+            "example": "https://api.bydoctor.com.br/api/public/v1/appointments?cursor=cj0xJnA9NDg3",
             "format": "uri",
             "nullable": true,
             "type": "string"
@@ -36,7 +36,7 @@
         "type": "object"
       },
       "PatientSummary": {
-        "description": "Shape of `PublicAppointmentSerializer.patient`. Schema-only, see `get_patient`.",
+        "description": "Paciente do agendamento.",
         "properties": {
           "id": {
             "type": "integer"
@@ -57,7 +57,7 @@
         "type": "object"
       },
       "ProfessionalSummary": {
-        "description": "Shape of `PublicAppointmentSerializer.professional`. Schema-only —\nnever instantiated for actual (de)serialization, see `get_professional`.",
+        "description": "Profissional responsável pelo atendimento.",
         "properties": {
           "id": {
             "type": "integer"
@@ -164,7 +164,7 @@
         "type": "object"
       },
       "RoomSummary": {
-        "description": "Shape of `PublicAppointmentSerializer.room`. Schema-only, see `get_room`.",
+        "description": "Sala em que o atendimento acontece, quando a clínica usa salas.",
         "properties": {
           "id": {
             "type": "integer"
@@ -209,11 +209,11 @@
   "paths": {
     "/api/public/v1/appointments": {
       "get": {
-        "description": "Retorna os agendamentos da clínica, do mais recente para o mais antigo, com paginação por cursor. Use `updated_since` para sincronizar apenas o que mudou desde a última consulta: agendamentos cancelados continuam aparecendo com `status: \"cancelled\"` em vez de desaparecerem da lista.",
+        "description": "Retorna os agendamentos da clínica em ordem crescente de atualização (`updated_at` mais antigo primeiro), com paginação por cursor — siga `next` até o fim para obter tudo. Use `updated_since` para sincronizar apenas o que mudou desde a última consulta: agendamentos cancelados continuam aparecendo com `status: \"cancelled\"` em vez de desaparecerem da lista.",
         "operationId": "appointments_list",
         "parameters": [
           {
-            "description": "The pagination cursor value.",
+            "description": "Cursor de paginação retornado em `next`/`previous`.",
             "in": "query",
             "name": "cursor",
             "required": false,
@@ -242,7 +242,7 @@
             }
           },
           {
-            "description": "Number of results to return per page.",
+            "description": "Resultados por página (padrão 50, máximo 100).",
             "in": "query",
             "name": "page_size",
             "required": false,
