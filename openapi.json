@@ -9,6 +9,14 @@
         ],
         "type": "string"
       },
+      "OriginEnum": {
+        "description": "* `staff` - Equipe\n* `patient_booking` - Agendamento online",
+        "enum": [
+          "staff",
+          "patient_booking"
+        ],
+        "type": "string"
+      },
       "PaginatedPublicAppointmentList": {
         "properties": {
           "next": {
@@ -99,7 +107,7 @@
             "$ref": "#/components/schemas/ModalityEnum"
           },
           "origin": {
-            "type": "string"
+            "$ref": "#/components/schemas/OriginEnum"
           },
           "patient": {
             "allOf": [
