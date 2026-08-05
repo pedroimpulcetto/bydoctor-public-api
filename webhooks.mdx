@@ -3,7 +3,11 @@ title: "Webhooks"
 description: "O envelope de evento, os três tipos de evento, entrega pelo menos uma vez e a política de reentrega."
 ---
 
-Webhooks notificam seu sistema em tempo real quando um agendamento muda, sem que você precise fazer polling constante. Registre um endpoint HTTPS público em **Minha clínica → API e Webhooks** e escolha os eventos de interesse.
+Webhooks notificam seu sistema em tempo real quando um agendamento muda, sem que você precise fazer polling constante. Registre um endpoint HTTPS público em **Minha Clínica → API e Webhooks** e escolha os eventos de interesse.
+
+<Note>
+  A URL do endpoint precisa ser HTTPS pública. `http://`, `localhost` e endereços de rede privada são rejeitados no momento em que você salva o endpoint (e checados de novo a cada entrega) — não é possível registrar um endpoint apontando para a sua máquina local ou para uma rede interna.
+</Note>
 
 ## O envelope
 
@@ -57,11 +61,17 @@ Se seu endpoint não responder `2xx`, o ByDoctor tenta novamente seguindo esta e
 
 `1 min → 5 min → 30 min → 2 h → 6 h`
 
-Após **20 falhas consecutivas de entrega**, o endpoint é **desativado automaticamente** e os administradores da clínica são notificados por e-mail. Um endpoint desativado não recebe novos eventos até ser reativado manualmente em **Minha clínica → API e Webhooks**.
+Cada "falha" nessa contagem é uma entrega que já esgotou as 6 tentativas da escala acima (cerca de 8h40 de tentativas) — não uma única resposta ruim. Após **20 falhas consecutivas** (ou seja, ~20 entregas seguidas totalmente esgotadas — uma indisponibilidade sustentada do seu receptor, não um erro pontual), o endpoint é **desativado automaticamente** e os administradores da clínica são notificados por e-mail. Um endpoint desativado não recebe novos eventos até ser reativado manualmente em **Minha Clínica → API e Webhooks**.
 
 ## Evento de teste (ping)
 
-Ao cadastrar ou editar um endpoint, use o botão de teste na interface do ByDoctor para disparar um evento `ping` — ele segue o mesmo envelope e a mesma assinatura de um evento real, mas com `data` vazio, útil para validar que seu endpoint está no ar e verificando assinaturas corretamente antes de assinar eventos de produção.
+Ao cadastrar ou editar um endpoint, use o botão de teste na interface do ByDoctor para disparar um evento `ping` — ele segue o mesmo envelope e a mesma assinatura de um evento real, mas com `type: "ping"` e um `data` fixo, não o formato de um agendamento:
+
+```json
+{ "message": "Evento de teste do ByDoctor." }
+```
+
+Não trate `data` vazio como sinal de que é um ping — não é assim que ele se distingue; verifique o campo `type` do envelope. O `ping` é útil para validar que seu endpoint está no ar e verificando assinaturas corretamente antes de assinar eventos de produção.
 
 ## Próximo passo
 

@@ -14,16 +14,18 @@ Authorization: Bearer bd_live_<id>.<secret>
 A chave tem duas partes separadas por um ponto: um identificador de prefixo (`bd_live_<id>`) e um segredo (`<secret>`). Ambas juntas formam a credencial completa.
 
 <Warning>
-  A chave é exibida **uma única vez**, no momento da criação, em **Minha clínica → API e Webhooks**. O ByDoctor armazena apenas o hash — não é possível recuperar uma chave perdida. Se isso acontecer, revogue a chave antiga e crie uma nova.
+  A chave é exibida **uma única vez**, no momento da criação, em **Minha Clínica → API e Webhooks**. O ByDoctor armazena apenas o hash — não é possível recuperar uma chave perdida. Se isso acontecer, revogue a chave antiga e crie uma nova.
 </Warning>
 
 ## Escopos
 
 Chaves de API são criadas com o escopo `appointments:read`, que concede acesso de leitura aos endpoints de agendamentos. Não existe, na v1, escopo de escrita — a API é somente leitura.
 
-## Revogação
+## Revogação e expiração
 
-Revogar uma chave em **Minha clínica → API e Webhooks** tem efeito **imediato**: a próxima requisição com essa chave recebe `401 Unauthorized`. Não há período de carência.
+Revogar uma chave em **Minha Clínica → API e Webhooks** tem efeito **imediato**: a próxima requisição com essa chave recebe `401 Unauthorized`. Não há período de carência.
+
+Uma chave também pode ter uma data de expiração (`expires_at`), definida na criação. Uma vez expirada, ela passa a se comportar como uma chave revogada: toda requisição recebe `401 Unauthorized`.
 
 ## Limites de uso (rate limits)
 
@@ -34,7 +36,7 @@ Cada chave está sujeita a dois limites, aplicados de forma independente:
 | Por minuto | 60 requisições |
 | Por dia | 10.000 requisições |
 
-Ao exceder um dos limites, a API responde `429 Too Many Requests`. Implemente backoff e nova tentativa; não faça polling agressivo — para manter uma cópia local em dia, prefira a receita de [sincronização](/sincronizacao) combinada com webhooks.
+Ao exceder um dos limites, a API responde `429 Too Many Requests` com um cabeçalho `Retry-After` indicando em quantos segundos tentar novamente. Implemente backoff e nova tentativa; não faça polling agressivo — para manter uma cópia local em dia, prefira a receita de [sincronização](/sincronizacao) combinada com webhooks.
 
 ## Segurança
 

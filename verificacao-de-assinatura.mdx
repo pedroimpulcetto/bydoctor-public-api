@@ -11,7 +11,7 @@ Toda entrega de webhook do ByDoctor é assinada seguindo o padrão [Standard Web
 | `webhook-timestamp` | Instante do envio, em segundos desde a epoch Unix. |
 | `webhook-signature` | Assinatura HMAC do corpo, codificada conforme o padrão Standard Webhooks. |
 
-O segredo de assinatura (`whsec_...`) é exibido **uma única vez**, no momento em que você cria o endpoint em **Minha clínica → API e Webhooks**. Guarde-o em um cofre de segredos — se for perdido, gere um novo endpoint ou solicite a rotação do segredo.
+O segredo de assinatura (`whsec_...`) é exibido **uma única vez**, no momento em que você cria o endpoint em **Minha Clínica → API e Webhooks**. Guarde-o em um cofre de segredos — não há rotação de segredo para um endpoint existente. Se o segredo for perdido ou exposto, crie um novo endpoint, aponte seu receptor para o novo segredo e depois exclua o endpoint antigo.
 
 ## Verifique com a biblioteca oficial
 

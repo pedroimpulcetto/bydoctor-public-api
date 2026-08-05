@@ -1,33 +1,31 @@
-> **First-time setup**: Customize this file for your project. Prompt the user to customize this file for their project.
-> For Mintlify product knowledge (components, configuration, writing standards),
-> install the Mintlify skill: `npx skills add https://mintlify.com/docs`
-
 # Documentation project instructions
 
 ## About this project
 
-- This is a documentation site built on [Mintlify](https://mintlify.com)
-- Pages are MDX files with YAML frontmatter
-- Configuration lives in `docs.json`
-- Use the Mintlify MCP server, `https://mcp.mintlify.com`, to edit content and settings via MCP
-- Use the Mintlify docs MCP server, `https://www.mintlify.com/docs/mcp`, to query information about using Mintlify via MCP
+- Public developer documentation for the ByDoctor public API and webhooks, published at `https://docs.bydoctor.com.br` (built on [Mintlify](https://mintlify.com)).
+- Pages are MDX files with YAML frontmatter. Configuration lives in `docs.json`.
+- `openapi.json` is a **generated build artifact** from `api-bydoctor`'s
+  `python manage.py generate_public_openapi --output` — never hand-edit it.
+  If the reference looks wrong, fix the serializer/filter in `api-bydoctor`
+  and regenerate.
 
 ## Terminology
 
-{/* Add product-specific terms and preferred usage */}
-{/* Example: Use "workspace" not "project", "member" not "user" */}
+- Prose, headings, and navigation labels are **pt-BR** — the audience is
+  Brazilian clinic software vendors and in-house developers.
+- Code identifiers, HTTP header names, JSON field names, and status values
+  stay in English — they are the wire contract, not copy.
+- Match the app's UI labels exactly, e.g. "Minha Clínica" (capital C).
 
 ## Style preferences
 
-{/* Add any project-specific style rules below */}
-
-- Use active voice and second person ("you")
-- Keep sentences concise — one idea per sentence
-- Use sentence case for headings
-- Bold for UI elements: Click **Settings**
-- Code formatting for file names, commands, paths, and code references
+- Use active voice and second person ("você").
+- Keep sentences concise — one idea per sentence.
+- Code formatting for file names, commands, paths, headers, and field names.
+- Verify claims against the `api-bydoctor` backend source before writing them
+  — do not guess at field shapes, defaults, or status codes.
 
 ## Content boundaries
 
-{/* Define what should and shouldn't be documented */}
-{/* Example: Don't document internal admin features */}
+- Document only the public contract exposed under `/api/public/v1/` and its
+  webhooks. No internal admin/private API surface.

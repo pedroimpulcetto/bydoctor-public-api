@@ -10,7 +10,7 @@ A API expõe dois endpoints, ambos somente leitura:
 | `GET` | `/appointments` | Lista agendamentos, com filtros e paginação |
 | `GET` | `/appointments/{id}` | Detalhe de um agendamento específico |
 
-Nenhuma rota tem barra final. O `id` na URL de detalhe é o identificador público do agendamento — veja [Identificador](#identificador) abaixo.
+Nenhuma rota tem barra final. Na referência da API gerada a partir do OpenAPI, o parâmetro de rota da URL de detalhe aparece como `public_id` — é o mesmo valor do campo `id` no corpo da resposta, o identificador público do agendamento (veja [Identificador](#identificador) abaixo).
 
 ## Listar agendamentos
 
@@ -32,7 +32,7 @@ curl -H "Authorization: Bearer bd_live_xxxxxxxx.yyyy" \
 | `modality` | `string` | `in_person` ou `telehealth`. |
 | `updated_since` | `datetime` (ISO 8601) | Retorna apenas agendamentos atualizados a partir deste instante. Veja [Sincronização](/sincronizacao). |
 | `cursor` | `string` | Cursor de paginação — use o valor devolvido em `next`, não construa manualmente. |
-| `page_size` | `integer` | Itens por página, máximo **100**. |
+| `page_size` | `integer` | Itens por página. Padrão **50**, máximo **100**. |
 
 ### Paginação por cursor
 
@@ -73,6 +73,8 @@ A paginação é por cursor, não por número de página. A resposta traz `next`
 
 `patient`, `professional` e `room` podem vir `null` — por exemplo, uma teleconsulta não tem sala associada.
 
+`patient.phone` é o texto cadastrado pela clínica, sem normalização; não há garantia de formato E.164 — `(11) 99999-8888` é tão provável quanto `+5511999998888`.
+
 `origin` indica como o agendamento foi criado: `staff` (equipe da clínica) ou `patient_booking` (agendamento online feito pelo paciente).
 
 ## Buscar um agendamento
@@ -84,6 +86,17 @@ curl -H "Authorization: Bearer bd_live_xxxxxxxx.yyyy" \
 
 Devolve o mesmo objeto de agendamento mostrado acima. Um `id` inexistente ou de outra clínica responde `404 Not Found`.
 
+## Erros
+
+| Código | Quando acontece |
+|---|---|
+| `400 Bad Request` | Filtro inválido — `status` desconhecido, `start_date` posterior a `end_date`, ou janela maior que 92 dias. |
+| `401 Unauthorized` | Chave ausente, revogada ou expirada. |
+| `403 Forbidden` | Chave válida, mas sem o escopo `appointments:read`. |
+| `429 Too Many Requests` | Limite de requisições excedido — veja [Autenticação](/autenticacao) para os limites e o cabeçalho `Retry-After`. |
+
 ## Identificador
 
-O `id` de um agendamento é um **UUID** — é o único identificador exposto publicamente. As chaves primárias internas (inteiras) do ByDoctor nunca aparecem na API pública. Armazene o `id` (UUID) como chave estrangeira no seu sistema; ele é estável entre chamadas e entre eventos de webhook para o mesmo agendamento.
+O `id` de um agendamento é um **UUID** — é o identificador público do agendamento e o único valor aceito na URL de detalhe. A chave primária interna (inteira) do agendamento nunca é exposta; armazene o UUID como chave estrangeira do agendamento no seu sistema — ele é estável entre chamadas e entre eventos de webhook.
+
+Isso não vale para os objetos aninhados: `patient.id`, `professional.id` e `room.id` **são** as chaves primárias internas (inteiras) do paciente, do profissional e da sala, expostas de propósito porque são os mesmos valores aceitos pelos filtros `patient_id`, `professional_id` e `room_id`. Se você pretende filtrar por eles depois, guarde esses valores também.
