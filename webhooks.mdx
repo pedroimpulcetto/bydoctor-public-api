@@ -37,11 +37,13 @@ Todo evento chega no corpo da requisição `POST` nesse formato:
 
 | Evento | Disparado quando |
 |---|---|
-| `appointment.created` | Um novo agendamento é criado (pela equipe ou via agendamento online do paciente). |
+| `appointment.created` | Um novo agendamento é criado — pela equipe, via agendamento online do paciente ou pela própria API (`origin: "api"`). |
 | `appointment.updated` | Um agendamento existente muda — horário, status, profissional, sala, modalidade etc. |
 | `appointment.cancelled` | Um agendamento é cancelado. |
 
 Um endpoint só recebe os eventos aos quais está inscrito.
+
+Os eventos não distinguem a origem da mudança: uma escrita feita pela API com o escopo `appointments:write` gera o mesmo evento que uma edição no aplicativo — inclusive para o endpoint do sistema que fez a escrita. Se o seu sistema escreve e também recebe webhooks, espere o eco das próprias escritas e trate-o de forma idempotente pelo `id` do agendamento em `data`.
 
 ## Entrega pelo menos uma vez (at-least-once)
 

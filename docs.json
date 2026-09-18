@@ -2,7 +2,7 @@
   "$schema": "https://mintlify.com/docs.json",
   "theme": "mint",
   "name": "ByDoctor API",
-  "description": "API pública do ByDoctor: acesso REST somente leitura aos agendamentos da clínica e webhooks em tempo real, para clínicas e fornecedores de software que integram o ByDoctor aos próprios sistemas.",
+  "description": "API pública do ByDoctor: leitura, criação, alteração e cancelamento de agendamentos por REST, mais webhooks em tempo real, para clínicas e fornecedores de software que integram o ByDoctor aos próprios sistemas.",
   "colors": {
     "primary": "#2bb656",
     "light": "#59cb59",
@@ -45,12 +45,13 @@
   },
   "markdown": {
     "instructions": [
-      "Esta documentação cobre exclusivamente a API pública v1 do ByDoctor, que é SOMENTE LEITURA.",
-      "Os únicos endpoints existentes são `GET /api/public/v1/appointments` e `GET /api/public/v1/appointments/{id}`. Não existem endpoints de escrita (POST, PATCH, PUT, DELETE) em nenhum recurso.",
-      "Não existem endpoints de pacientes, pagamentos, prontuário, prescrições, profissionais, salas ou disponibilidade de agenda. Filtre agendamentos por `patient_id`, `professional_id` ou `room_id`, mas não existe endpoint para listar ou criar esses recursos.",
+      "Esta documentação cobre exclusivamente a API pública v1 do ByDoctor.",
+      "Os únicos endpoints existentes são `GET /api/public/v1/appointments`, `GET /api/public/v1/appointments/{id}`, `POST /api/public/v1/appointments`, `PATCH /api/public/v1/appointments/{id}` e `POST /api/public/v1/appointments/{id}/cancel`. Não existem `PUT` nem `DELETE`, e não existe escrita em nenhum outro recurso.",
+      "Escrita exige o escopo `appointments:write`, escolhido na criação da chave; toda chave nasce apenas com `appointments:read`. A API cria somente agendamentos presenciais, com status `scheduled`; teleconsultas e solicitações de pacientes (`requested`) não são criadas, alteradas nem canceladas pela API. `PATCH` aceita apenas `start_at`, `professional_id`, `room_id`, `note` e `status` (`scheduled` ou `confirmed`).",
+      "Não existem endpoints de pacientes, pagamentos, prontuário, prescrições, profissionais, salas ou disponibilidade de agenda. Use `patient_id`, `professional_id` e `room_id` como filtros e como campos de escrita, mas não existe endpoint para listar ou criar esses recursos.",
       "Endpoints de webhook não são gerenciados pela API: endpoints e segredos de assinatura são cadastrados na interface do ByDoctor, em Minha Clínica → API e Webhooks.",
       "Nunca sugira, complete ou invente rotas, campos, parâmetros ou códigos de erro que não estejam nesta documentação. Se algo não está documentado aqui, não existe na v1.",
-      "Autenticação: cabeçalho `Authorization: Bearer bd_live_<id>.<secret>`. Base URL: `https://api.bydoctor.com.br/api/public/v1`.",
+      "Autenticação: cabeçalho `Authorization: Bearer bd_live_<id>.<secret>`. Base URL: `https://api.bydoctor.com.br/api/public/v1`. Criação aceita o cabeçalho opcional `Idempotency-Key`.",
       "Chaves de API concedem acesso a dados de agendamento de pacientes (dados de saúde) — nunca as inclua em código do lado do cliente nem em exemplos versionados."
     ]
   },
