@@ -1,0 +1,51 @@
+---
+title: "Tipos de atendimento"
+description: "Listar os tipos de atendimento da clínica para obter o appointment_type_id obrigatório na criação de agendamentos."
+---
+
+A lista traz os tipos de atendimento ativos da clínica, como "Consulta" e "Retorno": são os `id` aceitos como `appointment_type_id`, obrigatório em [`POST /appointments`](/agendamentos#criar-um-agendamento).
+
+| Método | Rota | Descrição |
+|---|---|---|
+| `GET` | `/appointment-types` | Lista os tipos de atendimento ativos |
+| `GET` | `/appointment-types/{id}` | Detalhe de um tipo de atendimento |
+
+As duas rotas exigem o escopo `appointments:read`, que toda chave já tem. Não há escrita: tipos de atendimento são cadastrados no aplicativo.
+
+## Listar tipos de atendimento
+
+```bash
+curl -H "Authorization: Bearer bd_live_xxxxxxxx.yyyy" \
+  "https://api.bydoctor.com.br/api/public/v1/appointment-types"
+```
+
+```json
+{
+  "next": null,
+  "previous": null,
+  "results": [
+    { "id": 4, "name": "Consulta" },
+    { "id": 9, "name": "Retorno" }
+  ]
+}
+```
+
+A resposta tem o mesmo formato paginado das outras listas (`next`, `previous`, `results`), em ordem de `id`.
+
+| Campo | Tipo | Descrição |
+|---|---|---|
+| `id` | `integer` | Use como `appointment_type_id`. É o mesmo `appointment_type.id` dos agendamentos. |
+| `name` | `string` | Nome do tipo de atendimento. |
+
+## Buscar um tipo de atendimento
+
+```bash
+curl -H "Authorization: Bearer bd_live_xxxxxxxx.yyyy" \
+  "https://api.bydoctor.com.br/api/public/v1/appointment-types/4"
+```
+
+Um `id` inexistente, inativo ou de outra clínica responde `404 Not Found`.
+
+## Tipo e valor do agendamento
+
+O valor do agendamento vem da tabela de preços da clínica para o profissional, o tipo e o pagador Particular, como no aplicativo. O tipo é definido na criação e não muda pela API. O agendamento devolve o tipo no campo `appointment_type`.

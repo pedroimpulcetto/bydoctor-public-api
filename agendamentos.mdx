@@ -53,6 +53,10 @@ A paginação é por cursor, não por número de página. A resposta traz `next`
       "status": "confirmed",
       "modality": "in_person",
       "origin": "patient_booking",
+      "appointment_type": {
+        "id": 4,
+        "name": "Consulta"
+      },
       "start_at": "2026-08-10T14:00:00-03:00",
       "end_at": "2026-08-10T14:30:00-03:00",
       "created_at": "2026-08-01T09:12:00-03:00",
@@ -80,6 +84,8 @@ A paginação é por cursor, não por número de página. A resposta traz `next`
 
 `patient.phone` é o texto cadastrado pela clínica, sem normalização; não há garantia de formato E.164 — `(11) 99999-8888` é tão provável quanto `+5511999998888`.
 
+`appointment_type` é o tipo de atendimento do agendamento; a lista de tipos da clínica está em [Tipos de atendimento](/tipos-de-atendimento).
+
 `origin` indica como o agendamento foi criado: `staff` (equipe da clínica), `patient_booking` (agendamento online feito pelo paciente) ou `api` (criado por esta API).
 
 `end_at` é derivado da duração de atendimento configurada para o profissional no ByDoctor; a API não recebe duração.
@@ -105,6 +111,7 @@ curl -X POST \
   -d '{
     "patient_id": 981,
     "professional_id": 12,
+    "appointment_type_id": 4,
     "start_at": "2026-10-03T14:00:00-03:00",
     "note": "Retorno pedido pelo CRM"
   }' \
@@ -114,18 +121,19 @@ curl -X POST \
 | Campo | Tipo | Obrigatório | Descrição |
 |---|---|---|---|
 | `patient_id` | `integer` | sim | `patient.id` de um paciente **ativo** da clínica. Encontre ou cadastre o paciente em [Pacientes](/pacientes). |
-| `professional_id` | `integer` | sim | `professional.id` de um profissional ativo da clínica que atende pacientes. |
+| `professional_id` | `integer` | sim | `id` de um profissional ativo da clínica que atende pacientes, listado em [`GET /professionals`](/profissionais). |
+| `appointment_type_id` | `integer` | sim | `id` de um tipo de atendimento ativo da clínica, listado em [`GET /appointment-types`](/tipos-de-atendimento). |
 | `start_at` | `datetime` (ISO 8601) | sim | Início do atendimento. Sem fuso horário, é lido em `America/Sao_Paulo`. Os segundos devem ser `00`. Aceito entre 1 ano no passado e 2 anos no futuro. |
-| `room_id` | `integer` | não | `room.id` de uma sala ativa. Omitido, a API usa a sala padrão da grade do profissional, se houver. |
+| `room_id` | `integer` | não | `id` de uma sala ativa, listada em [`GET /rooms`](/salas). Omitido, a API usa a sala padrão da grade do profissional, se houver. |
 | `note` | `string` | não | Observação interna, até 2.000 caracteres. |
 
 Responde `201 Created` com o objeto do agendamento. O agendamento nasce:
 
 - **presencial** (`modality: "in_person"`) — a API não cria teleconsultas;
 - com `status: "scheduled"` e `origin: "api"`;
-- no tipo "Consulta" da clínica e com o pagador Particular do profissional — tipo, convênio e valor são ajustados no aplicativo, se necessário.
+- no tipo informado em `appointment_type_id` e com o pagador Particular do profissional, com o valor da tabela de preços da clínica para esse profissional, tipo e pagador — convênio e valor são ajustados no aplicativo, se necessário.
 
-Os ids de paciente, profissional e sala só resolvem dentro da clínica da chave. Um id de outra clínica e um id inexistente recebem **a mesma** resposta `400`, no formato de erro por campo:
+Os ids de paciente, profissional, tipo e sala só resolvem dentro da clínica da chave. Um id de outra clínica, inativo ou inexistente recebe **a mesma** resposta `400`, no formato de erro por campo:
 
 ```json
 { "patient_id": ["No active patient with this id in your clinic."] }
@@ -161,7 +169,7 @@ curl -X PATCH \
 | `note` | `string` | Substitui a observação interna. |
 | `status` | `string` | `scheduled` ou `confirmed`, nas duas direções. Os demais status (`checked_in`, `completed`, `no_show`) são definidos apenas pelo aplicativo, porque disparam fluxos financeiros e clínicos. |
 
-Responde `200 OK` com o objeto atualizado.
+Responde `200 OK` com o objeto atualizado. O tipo de atendimento não muda pela API: ele define o valor, que é fixado na criação.
 
 ### Regras de alteração
 
@@ -196,7 +204,7 @@ Uma escrita pela API dispara os mesmos eventos de uma edição feita no aplicati
 
 | Código | Quando acontece |
 |---|---|
-| `400 Bad Request` | Filtro ou corpo inválido. Nas escritas, o corpo traz o erro por campo: `{"campo": ["mensagem"]}`. Inclui id de paciente, profissional ou sala inexistente na sua clínica, `start_at` fora das regras, `status` fora de `scheduled`/`confirmed` e corpo vazio no `PATCH`. |
+| `400 Bad Request` | Filtro ou corpo inválido. Nas escritas, o corpo traz o erro por campo: `{"campo": ["mensagem"]}`. Inclui `appointment_type_id` ausente e id de paciente, profissional, tipo ou sala inexistente na sua clínica, `start_at` fora das regras, `status` fora de `scheduled`/`confirmed` e corpo vazio no `PATCH`. |
 | `401 Unauthorized` | Chave ausente, revogada ou expirada. |
 | `403 Forbidden` | Chave válida, mas sem o escopo exigido pela rota (`appointments:read` para leitura, `appointments:write` para escrita). |
 | `404 Not Found` | `id` inexistente ou de outra clínica, em qualquer rota de detalhe. |
@@ -227,4 +235,4 @@ Ramifique pelo `code`, não pelo texto de `detail` — o texto pode mudar; o có
 
 O `id` de um agendamento é um **UUID** — é o identificador do agendamento na API e o único valor aceito nas URLs de detalhe. Armazene o UUID como chave estrangeira do agendamento no seu sistema — ele é estável entre chamadas e entre eventos de webhook.
 
-Os objetos aninhados usam identificadores próprios: `patient.id`, `professional.id` e `room.id` são numéricos, os mesmos valores aceitos pelos filtros `patient_id`, `professional_id` e `room_id` e pelos campos de mesmo nome nas escritas. Se você pretende filtrar por eles ou criar agendamentos depois, guarde esses valores também. `patient.id` é o `id` do recurso [Pacientes](/pacientes).
+Os objetos aninhados usam identificadores próprios: `patient.id`, `professional.id`, `appointment_type.id` e `room.id` são numéricos, os mesmos valores aceitos pelos filtros `patient_id`, `professional_id` e `room_id` e pelos campos de mesmo nome nas escritas. Se você pretende filtrar por eles ou criar agendamentos depois, guarde esses valores também. `patient.id` é o `id` do recurso [Pacientes](/pacientes).

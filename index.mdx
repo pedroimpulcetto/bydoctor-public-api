@@ -40,6 +40,7 @@ Cada chave é **Somente leitura** (ler agendamentos e pacientes) ou **Acesso tot
 
 - **Agendamentos** (`/agendamentos`): consulte a agenda da clínica por período, status, profissional, paciente, sala ou modalidade, com paginação por cursor; crie, altere e cancele agendamentos presenciais com o escopo de escrita.
 - **Pacientes** (`/pacientes`): encontre o paciente pelo CPF ou telefone e cadastre-o se não existir, para usar o `id` na criação de agendamentos. CPF, e-mail e data de nascimento são gravados, mas nunca devolvidos.
+- **Profissionais** (`/profissionais`), **Salas** (`/salas`) e **Tipos de atendimento** (`/tipos-de-atendimento`): os ids que a criação de agendamentos pede, em listas somente leitura com o mínimo de dados.
 - **Sincronização** (`/sincronizacao`): a receita recomendada para manter uma cópia local da agenda em dia, combinando `updated_since` com webhooks.
 - **Webhooks** (`/webhooks`): receba `appointment.created`, `appointment.updated` e `appointment.cancelled` assim que acontecem, com entrega pelo menos uma vez (at-least-once) e reentrega automática.
 - **Verificação de assinatura** (`/verificacao-de-assinatura`): valide a origem de cada evento recebido usando o padrão [Standard Webhooks](https://www.standardwebhooks.com).
