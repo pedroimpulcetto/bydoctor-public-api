@@ -7,7 +7,7 @@ Este guia leva você do zero até receber o primeiro evento de webhook.
 
 <Steps>
   <Step title="Crie uma chave de API">
-    No ByDoctor, acesse **Minha Clínica → API e Webhooks** e crie uma nova chave.
+    No ByDoctor, acesse **Minha Clínica → API e Webhooks** e crie uma nova chave. Toda chave nasce com o escopo de leitura (`appointments:read`); marque também **Escrever agendamentos** (`appointments:write`) se a integração vai criar, alterar ou cancelar agendamentos — os escopos não podem ser alterados depois. Veja [Escopos](/autenticacao#escopos).
 
     A chave completa é exibida **uma única vez**, no formato `bd_live_<id>.<secret>`. Copie e guarde em um cofre de segredos imediatamente — o ByDoctor armazena apenas o hash e não consegue mostrá-la novamente. Se perdê-la, revogue e crie uma nova.
   </Step>

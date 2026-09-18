@@ -1,16 +1,21 @@
 ---
 title: "Agendamentos"
-description: "Endpoints de listagem e detalhe, filtros disponíveis e paginação por cursor."
+description: "Listar, consultar, criar, alterar e cancelar agendamentos: filtros, paginação por cursor, regras de escrita e códigos de erro."
 ---
 
-A API expõe dois endpoints, ambos somente leitura:
+A API expõe cinco endpoints no recurso de agendamentos:
 
-| Método | Rota | Descrição |
-|---|---|---|
-| `GET` | `/appointments` | Lista agendamentos, com filtros e paginação |
-| `GET` | `/appointments/{id}` | Detalhe de um agendamento específico |
+| Método | Rota | Escopo | Descrição |
+|---|---|---|---|
+| `GET` | `/appointments` | `appointments:read` | Lista agendamentos, com filtros e paginação |
+| `GET` | `/appointments/{id}` | `appointments:read` | Detalhe de um agendamento específico |
+| `POST` | `/appointments` | `appointments:write` | Cria um agendamento presencial |
+| `PATCH` | `/appointments/{id}` | `appointments:write` | Altera campos de um agendamento |
+| `POST` | `/appointments/{id}/cancel` | `appointments:write` | Cancela um agendamento |
 
-Nenhuma rota tem barra final. Na referência da API gerada a partir do OpenAPI, o parâmetro de rota da URL de detalhe aparece como `public_id` — é o mesmo valor do campo `id` no corpo da resposta, o identificador do agendamento (veja [Identificador](#identificador) abaixo).
+Nenhuma rota tem barra final. Não existem `PUT` nem `DELETE`. Na referência da API gerada a partir do OpenAPI, o parâmetro de rota das URLs de detalhe aparece como `public_id` — é o mesmo valor do campo `id` no corpo da resposta, o identificador do agendamento (veja [Identificador](#identificador) abaixo).
+
+Toda escrita devolve o **mesmo objeto de agendamento** que `GET` devolve, já com o estado gravado — não é preciso consultar de novo.
 
 ## Listar agendamentos
 
@@ -75,7 +80,9 @@ A paginação é por cursor, não por número de página. A resposta traz `next`
 
 `patient.phone` é o texto cadastrado pela clínica, sem normalização; não há garantia de formato E.164 — `(11) 99999-8888` é tão provável quanto `+5511999998888`.
 
-`origin` indica como o agendamento foi criado: `staff` (equipe da clínica) ou `patient_booking` (agendamento online feito pelo paciente).
+`origin` indica como o agendamento foi criado: `staff` (equipe da clínica), `patient_booking` (agendamento online feito pelo paciente) ou `api` (criado por esta API).
+
+`end_at` é derivado da duração de atendimento configurada para o profissional no ByDoctor; a API não recebe duração.
 
 ## Buscar um agendamento
 
@@ -86,17 +93,138 @@ curl -H "Authorization: Bearer bd_live_xxxxxxxx.yyyy" \
 
 Devolve o mesmo objeto de agendamento mostrado acima. Um `id` inexistente ou de outra clínica responde `404 Not Found`.
 
+## Criar um agendamento
+
+Requer o escopo `appointments:write` — veja [Escopos](/autenticacao#escopos).
+
+```bash
+curl -X POST \
+  -H "Authorization: Bearer bd_live_xxxxxxxx.yyyy" \
+  -H "Content-Type: application/json" \
+  -H "Idempotency-Key: 0c6a2a2e-9d5f-4e2b-9d0b-2a0f3f1a7c11" \
+  -d '{
+    "patient_id": 981,
+    "professional_id": 12,
+    "start_at": "2026-10-03T14:00:00-03:00",
+    "note": "Retorno pedido pelo CRM"
+  }' \
+  "https://api.bydoctor.com.br/api/public/v1/appointments"
+```
+
+| Campo | Tipo | Obrigatório | Descrição |
+|---|---|---|---|
+| `patient_id` | `integer` | sim | `patient.id` de um paciente **ativo** da clínica. |
+| `professional_id` | `integer` | sim | `professional.id` de um profissional ativo da clínica que atende pacientes. |
+| `start_at` | `datetime` (ISO 8601) | sim | Início do atendimento. Sem fuso horário, é lido em `America/Sao_Paulo`. Os segundos devem ser `00`. Aceito entre 1 ano no passado e 2 anos no futuro. |
+| `room_id` | `integer` | não | `room.id` de uma sala ativa. Omitido, a API usa a sala padrão da grade do profissional, se houver. |
+| `note` | `string` | não | Observação interna, até 2.000 caracteres. |
+
+Responde `201 Created` com o objeto do agendamento. O agendamento nasce:
+
+- **presencial** (`modality: "in_person"`) — a API não cria teleconsultas;
+- com `status: "scheduled"` e `origin: "api"`;
+- no tipo "Consulta" da clínica e com o pagador Particular do profissional — tipo, convênio e valor são ajustados no aplicativo, se necessário.
+
+Os ids de paciente, profissional e sala só resolvem dentro da clínica da chave. Um id de outra clínica e um id inexistente recebem **a mesma** resposta `400`, no formato de erro por campo:
+
+```json
+{ "patient_id": ["No active patient with this id in your clinic."] }
+```
+
+A clínica pode ter bloqueios de agenda por profissional (folgas, férias). Um `start_at` dentro de um bloqueio responde `409` com `code: "slot_blocked"`. Marcar dois pacientes no mesmo horário com o mesmo profissional é permitido, como no aplicativo.
+
+Se a clínica exige sala em atendimentos presenciais e a grade do profissional não tem uma sala padrão para o horário, a API responde `409` com `code: "room_required"` — envie `room_id`.
+
+### Idempotency-Key
+
+Envie o cabeçalho `Idempotency-Key` (até 255 caracteres, um UUID serve) para poder repetir a criação com segurança depois de um timeout ou erro de rede. Repetir a mesma requisição com a mesma chave em até **24 horas** devolve o agendamento já criado — mesmo `201`, mesmo corpo — com o cabeçalho de resposta `Idempotent-Replayed: true`, em vez de criar outro. A mesma chave com um corpo diferente responde `422` com `code: "idempotency_key_reused"`.
+
+A chave é privada à sua chave de API: duas chaves de API da mesma clínica não compartilham histórico de idempotência.
+
+## Alterar um agendamento
+
+Requer o escopo `appointments:write`. Envie **apenas os campos que mudam** — o corpo vazio responde `400`.
+
+```bash
+curl -X PATCH \
+  -H "Authorization: Bearer bd_live_xxxxxxxx.yyyy" \
+  -H "Content-Type: application/json" \
+  -d '{ "start_at": "2026-10-03T15:00:00-03:00", "status": "confirmed" }' \
+  "https://api.bydoctor.com.br/api/public/v1/appointments/3fa85f64-5717-4562-b3fc-2c963f66afa6"
+```
+
+| Campo | Tipo | Descrição |
+|---|---|---|
+| `start_at` | `datetime` | Novo início; mesmas regras da criação. |
+| `professional_id` | `integer` | Troca o profissional. Recusado com `409` `appointment_historic_conflict` se o prontuário já tem conteúdo clínico. |
+| `room_id` | `integer` ou `null` | Troca a sala. `null` volta para a sala padrão da grade do profissional (ou nenhuma, se a clínica não exige sala). |
+| `note` | `string` | Substitui a observação interna. |
+| `status` | `string` | `scheduled` ou `confirmed`, nas duas direções. Os demais status (`checked_in`, `completed`, `no_show`) são definidos apenas pelo aplicativo, porque disparam fluxos financeiros e clínicos. |
+
+Responde `200 OK` com o objeto atualizado.
+
+### Regras de alteração
+
+As mesmas do aplicativo:
+
+- Só agendamentos **presenciais** com `status` `scheduled` ou `confirmed` aceitam alteração. Qualquer outro caso responde `409` (veja os códigos abaixo).
+- A partir de `confirmed`, **apenas `status` pode mudar**. Para reagendar ou trocar o profissional de um agendamento confirmado, volte-o para `scheduled` primeiro (`{"status": "scheduled"}`) e altere em seguida.
+- Um agendamento cujo prontuário já foi preenchido pelo profissional está congelado: nada muda, nem o status (`409` `appointment_finalized`).
+- Solicitações de agendamento online feitas por pacientes (`status: "requested"`) são confirmadas ou recusadas no aplicativo, não pela API.
+
+## Cancelar um agendamento
+
+Requer o escopo `appointments:write`. Não há corpo.
+
+```bash
+curl -X POST \
+  -H "Authorization: Bearer bd_live_xxxxxxxx.yyyy" \
+  "https://api.bydoctor.com.br/api/public/v1/appointments/3fa85f64-5717-4562-b3fc-2c963f66afa6/cancel"
+```
+
+Responde `200 OK` com o objeto do agendamento, agora com `status: "cancelled"`. A chamada é **idempotente**: cancelar um agendamento já cancelado responde `200` com o mesmo objeto e não gera um novo evento de webhook.
+
+Só um agendamento presencial com `status: "scheduled"` pode ser cancelado — a mesma regra do aplicativo. Um agendamento `confirmed` precisa voltar para `scheduled` antes (`PATCH {"status": "scheduled"}`); um agendamento com prontuário preenchido não pode ser cancelado (`409` `appointment_finalized`).
+
+O agendamento cancelado continua aparecendo na listagem com `status: "cancelled"` e `updated_at` atualizado, como descrito em [Sincronização](/sincronizacao).
+
+## Escritas e webhooks
+
+Uma escrita pela API dispara os mesmos eventos de uma edição feita no aplicativo — `appointment.created`, `appointment.updated` ou `appointment.cancelled` — para **todos** os endpoints de webhook da clínica inscritos naquele evento, inclusive o seu. Se o seu sistema também recebe webhooks, espere receber o eco da própria escrita e trate-o de forma idempotente pelo `id` do agendamento.
+
 ## Erros
 
 | Código | Quando acontece |
 |---|---|
-| `400 Bad Request` | Filtro inválido — `status` desconhecido, `start_date` posterior a `end_date`, ou janela maior que 92 dias. |
+| `400 Bad Request` | Filtro ou corpo inválido. Nas escritas, o corpo traz o erro por campo: `{"campo": ["mensagem"]}`. Inclui id de paciente, profissional ou sala inexistente na sua clínica, `start_at` fora das regras, `status` fora de `scheduled`/`confirmed` e corpo vazio no `PATCH`. |
 | `401 Unauthorized` | Chave ausente, revogada ou expirada. |
-| `403 Forbidden` | Chave válida, mas sem o escopo `appointments:read`. |
-| `429 Too Many Requests` | Limite de requisições excedido — veja [Autenticação](/autenticacao) para os limites e o cabeçalho `Retry-After`. |
+| `403 Forbidden` | Chave válida, mas sem o escopo exigido pela rota (`appointments:read` para leitura, `appointments:write` para escrita). |
+| `404 Not Found` | `id` inexistente ou de outra clínica, em qualquer rota de detalhe. |
+| `409 Conflict` | A escrita foi recusada por uma regra de negócio. O corpo traz `code` e `detail` (veja abaixo). |
+| `422 Unprocessable Entity` | `Idempotency-Key` reutilizada com um corpo diferente (`code: "idempotency_key_reused"`). |
+| `429 Too Many Requests` | Limite de requisições excedido — veja [Autenticação](/autenticacao) para os limites e o cabeçalho `Retry-After`. Leituras e escritas compartilham o mesmo limite. |
+
+### Códigos de `409`
+
+```json
+{ "code": "slot_blocked", "detail": "This time is blocked on the professional's calendar." }
+```
+
+| `code` | Significado |
+|---|---|
+| `slot_blocked` | O horário está dentro de um bloqueio de agenda do profissional. |
+| `room_required` | A clínica exige sala e a grade do profissional não tem sala padrão para o horário — envie `room_id`. |
+| `appointment_status_locked` | O `status` atual não permite a alteração pedida. A resposta pode trazer `fields`, com os campos recusados. |
+| `appointment_finalized` | O prontuário já foi preenchido; o agendamento está congelado. |
+| `appointment_cancelled` | O agendamento já está cancelado e não aceita alteração. |
+| `appointment_requested` | Solicitação de agendamento online de um paciente; resolva no aplicativo. |
+| `modality_unsupported` | Teleconsulta; a API não altera nem cancela teleconsultas. |
+| `appointment_historic_conflict` | A troca de profissional foi recusada porque o prontuário já tem conteúdo clínico. |
+
+Ramifique pelo `code`, não pelo texto de `detail` — o texto pode mudar; o código não.
 
 ## Identificador
 
-O `id` de um agendamento é um **UUID** — é o identificador do agendamento na API e o único valor aceito na URL de detalhe. Armazene o UUID como chave estrangeira do agendamento no seu sistema — ele é estável entre chamadas e entre eventos de webhook.
+O `id` de um agendamento é um **UUID** — é o identificador do agendamento na API e o único valor aceito nas URLs de detalhe. Armazene o UUID como chave estrangeira do agendamento no seu sistema — ele é estável entre chamadas e entre eventos de webhook.
 
-Os objetos aninhados usam identificadores próprios: `patient.id`, `professional.id` e `room.id` são numéricos, os mesmos valores aceitos pelos filtros `patient_id`, `professional_id` e `room_id`. Se você pretende filtrar por eles depois, guarde esses valores também.
+Os objetos aninhados usam identificadores próprios: `patient.id`, `professional.id` e `room.id` são numéricos, os mesmos valores aceitos pelos filtros `patient_id`, `professional_id` e `room_id` e pelos campos de mesmo nome nas escritas. Se você pretende filtrar por eles ou criar agendamentos depois, guarde esses valores também.

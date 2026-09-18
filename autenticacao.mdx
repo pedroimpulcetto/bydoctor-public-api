@@ -19,7 +19,16 @@ A chave tem duas partes separadas por um ponto: um identificador de prefixo (`bd
 
 ## Escopos
 
-Chaves de API são criadas com o escopo `appointments:read`, que concede acesso de leitura aos endpoints de agendamentos. Não existe, na v1, escopo de escrita — a API é somente leitura.
+Cada chave carrega um ou mais escopos, escolhidos na criação em **Minha Clínica → API e Webhooks**. Uma rota exige exatamente um escopo; uma chave sem ele recebe `403 Forbidden`.
+
+| Escopo | Concede |
+|---|---|
+| `appointments:read` | `GET /appointments` e `GET /appointments/{id}` |
+| `appointments:write` | `POST /appointments`, `PATCH /appointments/{id}` e `POST /appointments/{id}/cancel` |
+
+Por padrão uma chave nasce **somente com `appointments:read`**; a escrita é concedida por chave, de forma explícita. Os escopos são independentes: uma chave só com `appointments:write` cria e altera agendamentos, mas não lista nem consulta. Os escopos de uma chave não podem ser alterados depois — crie uma chave nova e revogue a antiga.
+
+Chaves criadas antes da escrita existir continuam somente leitura.
 
 ## Revogação e expiração
 

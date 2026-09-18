@@ -10,10 +10,11 @@
         "type": "string"
       },
       "OriginEnum": {
-        "description": "* `staff` - Equipe\n* `patient_booking` - Agendamento online",
+        "description": "* `staff` - Equipe\n* `patient_booking` - Agendamento online\n* `api` - API pública",
         "enum": [
           "staff",
-          "patient_booking"
+          "patient_booking",
+          "api"
         ],
         "type": "string"
       },
@@ -41,6 +42,39 @@
         "required": [
           "results"
         ],
+        "type": "object"
+      },
+      "PatchedPublicAppointmentUpdate": {
+        "description": "Corpo para alterar um agendamento. Envie apenas os campos que mudam.",
+        "properties": {
+          "note": {
+            "description": "Observação interna do agendamento, até 2000 caracteres.",
+            "maxLength": 2000,
+            "type": "string"
+          },
+          "professional_id": {
+            "description": "`professional.id` de um profissional ativo da clínica que atende pacientes.",
+            "type": "integer"
+          },
+          "room_id": {
+            "description": "`room.id` de uma sala ativa. `null` volta para a sala padrão da grade do profissional.",
+            "nullable": true,
+            "type": "integer"
+          },
+          "start_at": {
+            "description": "Novo início, ISO 8601. Sem fuso horário, é lido em America/Sao_Paulo. Os segundos devem ser `00`.",
+            "format": "date-time",
+            "type": "string"
+          },
+          "status": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PublicAppointmentUpdateStatusEnum"
+              }
+            ],
+            "description": "`scheduled` ou `confirmed`. Os demais status são definidos apenas pelo aplicativo.\n\n* `scheduled` - scheduled\n* `confirmed` - confirmed"
+          }
+        },
         "type": "object"
       },
       "PatientSummary": {
@@ -144,7 +178,7 @@
           "status": {
             "allOf": [
               {
-                "$ref": "#/components/schemas/StatusEnum"
+                "$ref": "#/components/schemas/PublicAppointmentStatusEnum"
               }
             ],
             "description": "One of: requested, scheduled, confirmed, checked_in, completed, no_show, cancelled.",
@@ -171,6 +205,60 @@
         ],
         "type": "object"
       },
+      "PublicAppointmentCreate": {
+        "description": "Corpo para criar um agendamento. O agendamento nasce presencial, com\n`status: \"scheduled\"` e `origin: \"api\"`, no tipo \"Consulta\" da clínica e\ncom o pagador Particular do profissional.",
+        "properties": {
+          "note": {
+            "description": "Observação interna do agendamento, até 2000 caracteres.",
+            "maxLength": 2000,
+            "type": "string"
+          },
+          "patient_id": {
+            "description": "`patient.id` de um paciente ativo da clínica.",
+            "type": "integer"
+          },
+          "professional_id": {
+            "description": "`professional.id` de um profissional ativo da clínica que atende pacientes.",
+            "type": "integer"
+          },
+          "room_id": {
+            "description": "`room.id` de uma sala ativa. Omitido, usa a sala padrão da grade do profissional, se houver.",
+            "nullable": true,
+            "type": "integer"
+          },
+          "start_at": {
+            "description": "Início do atendimento, ISO 8601. Sem fuso horário, é lido em America/Sao_Paulo. Os segundos devem ser `00`.",
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "patient_id",
+          "professional_id",
+          "start_at"
+        ],
+        "type": "object"
+      },
+      "PublicAppointmentStatusEnum": {
+        "enum": [
+          "requested",
+          "scheduled",
+          "confirmed",
+          "checked_in",
+          "completed",
+          "no_show",
+          "cancelled"
+        ],
+        "type": "string"
+      },
+      "PublicAppointmentUpdateStatusEnum": {
+        "description": "* `scheduled` - scheduled\n* `confirmed` - confirmed",
+        "enum": [
+          "scheduled",
+          "confirmed"
+        ],
+        "type": "string"
+      },
       "RoomSummary": {
         "description": "Sala em que o atendimento acontece, quando a clínica usa salas.",
         "properties": {
@@ -186,18 +274,6 @@
           "name"
         ],
         "type": "object"
-      },
-      "StatusEnum": {
-        "enum": [
-          "requested",
-          "scheduled",
-          "confirmed",
-          "checked_in",
-          "completed",
-          "no_show",
-          "cancelled"
-        ],
-        "type": "string"
       }
     },
     "securitySchemes": {
@@ -334,6 +410,61 @@
         "tags": [
           "appointments"
         ]
+      },
+      "post": {
+        "description": "Cria um agendamento presencial com `status: \"scheduled\"` e `origin: \"api\"`, no tipo \"Consulta\" da clínica e com o pagador Particular do profissional. Requer o escopo `appointments:write`. Envie `Idempotency-Key` para poder repetir a chamada com segurança. Responde `409` com `code` `slot_blocked` (horário bloqueado na agenda do profissional) ou `room_required` (a clínica exige sala e a grade do profissional não tem sala padrão para o horário). O corpo da resposta é o mesmo objeto de `GET`.",
+        "operationId": "appointments_create",
+        "parameters": [
+          {
+            "description": "Chave opcional (até 255 caracteres) que torna a criação idempotente: repetir a mesma requisição com a mesma chave em até 24 horas devolve o agendamento já criado, com o cabeçalho `Idempotent-Replayed: true`, em vez de criar outro. A mesma chave com um corpo diferente responde `422`.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PublicAppointmentCreate"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/PublicAppointmentCreate"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/PublicAppointmentCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicAppointment"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "summary": "Criar um agendamento",
+        "tags": [
+          "appointments"
+        ]
       }
     },
     "/api/public/v1/appointments/{public_id}": {
@@ -369,6 +500,99 @@
           }
         ],
         "summary": "Consultar um agendamento",
+        "tags": [
+          "appointments"
+        ]
+      },
+      "patch": {
+        "description": "Altera apenas os campos enviados. Só agendamentos presenciais com `status` `scheduled` ou `confirmed` podem ser alterados; a partir de `confirmed`, apenas `status` pode mudar. Requer o escopo `appointments:write`. Responde `409` com `code` `appointment_status_locked`, `appointment_finalized` (prontuário já preenchido), `appointment_cancelled`, `appointment_requested` (solicitação de paciente, resolvida no aplicativo), `modality_unsupported` (teleconsulta), `slot_blocked`, `room_required` ou `appointment_historic_conflict` (troca de profissional com prontuário já preenchido).",
+        "operationId": "appointments_partial_update",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "public_id",
+            "required": true,
+            "schema": {
+              "pattern": "^[0-9a-fA-F-]{36}$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PatchedPublicAppointmentUpdate"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/PatchedPublicAppointmentUpdate"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/PatchedPublicAppointmentUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicAppointment"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "summary": "Alterar um agendamento",
+        "tags": [
+          "appointments"
+        ]
+      }
+    },
+    "/api/public/v1/appointments/{public_id}/cancel": {
+      "post": {
+        "description": "Cancela o agendamento e devolve o objeto com `status: \"cancelled\"`. Idempotente: cancelar de novo responde `200` com o mesmo objeto. Requer o escopo `appointments:write`. Mesmas recusas `409` da alteração.",
+        "operationId": "appointments_cancel_create",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "public_id",
+            "required": true,
+            "schema": {
+              "pattern": "^[0-9a-fA-F-]{36}$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicAppointment"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "summary": "Cancelar um agendamento",
         "tags": [
           "appointments"
         ]
