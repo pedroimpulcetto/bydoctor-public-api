@@ -113,7 +113,7 @@ curl -X POST \
 
 | Campo | Tipo | Obrigatório | Descrição |
 |---|---|---|---|
-| `patient_id` | `integer` | sim | `patient.id` de um paciente **ativo** da clínica. |
+| `patient_id` | `integer` | sim | `patient.id` de um paciente **ativo** da clínica. Encontre ou cadastre o paciente em [Pacientes](/pacientes). |
 | `professional_id` | `integer` | sim | `professional.id` de um profissional ativo da clínica que atende pacientes. |
 | `start_at` | `datetime` (ISO 8601) | sim | Início do atendimento. Sem fuso horário, é lido em `America/Sao_Paulo`. Os segundos devem ser `00`. Aceito entre 1 ano no passado e 2 anos no futuro. |
 | `room_id` | `integer` | não | `room.id` de uma sala ativa. Omitido, a API usa a sala padrão da grade do profissional, se houver. |
@@ -137,7 +137,7 @@ Se a clínica exige sala em atendimentos presenciais e a grade do profissional n
 
 ### Idempotency-Key
 
-Envie o cabeçalho `Idempotency-Key` (até 255 caracteres, um UUID serve) para poder repetir a criação com segurança depois de um timeout ou erro de rede. Repetir a mesma requisição com a mesma chave em até **24 horas** devolve o agendamento já criado — mesmo `201`, mesmo corpo — com o cabeçalho de resposta `Idempotent-Replayed: true`, em vez de criar outro. A mesma chave com um corpo diferente responde `422` com `code: "idempotency_key_reused"`.
+Envie o cabeçalho `Idempotency-Key` (até 255 caracteres, um UUID serve) para poder repetir a criação com segurança depois de um timeout ou erro de rede. Repetir a mesma requisição com a mesma chave em até **24 horas** devolve o agendamento já criado — mesmo `201`, mesmo corpo — com o cabeçalho de resposta `Idempotent-Replayed: true`, em vez de criar outro. A mesma chave com um corpo diferente, ou em outro endpoint, responde `422` com `code: "idempotency_key_reused"`.
 
 A chave é privada à sua chave de API: duas chaves de API da mesma clínica não compartilham histórico de idempotência.
 
@@ -201,7 +201,7 @@ Uma escrita pela API dispara os mesmos eventos de uma edição feita no aplicati
 | `403 Forbidden` | Chave válida, mas sem o escopo exigido pela rota (`appointments:read` para leitura, `appointments:write` para escrita). |
 | `404 Not Found` | `id` inexistente ou de outra clínica, em qualquer rota de detalhe. |
 | `409 Conflict` | A escrita foi recusada por uma regra de negócio. O corpo traz `code` e `detail` (veja abaixo). |
-| `422 Unprocessable Entity` | `Idempotency-Key` reutilizada com um corpo diferente (`code: "idempotency_key_reused"`). |
+| `422 Unprocessable Entity` | `Idempotency-Key` reutilizada com um corpo diferente ou em outro endpoint (`code: "idempotency_key_reused"`). |
 | `429 Too Many Requests` | Limite de requisições excedido — veja [Autenticação](/autenticacao) para os limites e o cabeçalho `Retry-After`. Leituras e escritas compartilham o mesmo limite. |
 
 ### Códigos de `409`
@@ -227,4 +227,4 @@ Ramifique pelo `code`, não pelo texto de `detail` — o texto pode mudar; o có
 
 O `id` de um agendamento é um **UUID** — é o identificador do agendamento na API e o único valor aceito nas URLs de detalhe. Armazene o UUID como chave estrangeira do agendamento no seu sistema — ele é estável entre chamadas e entre eventos de webhook.
 
-Os objetos aninhados usam identificadores próprios: `patient.id`, `professional.id` e `room.id` são numéricos, os mesmos valores aceitos pelos filtros `patient_id`, `professional_id` e `room_id` e pelos campos de mesmo nome nas escritas. Se você pretende filtrar por eles ou criar agendamentos depois, guarde esses valores também.
+Os objetos aninhados usam identificadores próprios: `patient.id`, `professional.id` e `room.id` são numéricos, os mesmos valores aceitos pelos filtros `patient_id`, `professional_id` e `room_id` e pelos campos de mesmo nome nas escritas. Se você pretende filtrar por eles ou criar agendamentos depois, guarde esses valores também. `patient.id` é o `id` do recurso [Pacientes](/pacientes).

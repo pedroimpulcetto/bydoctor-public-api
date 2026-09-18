@@ -25,6 +25,8 @@ Se você mantém uma cópia local dos agendamentos da clínica (para um BI, um C
   </Step>
 </Steps>
 
+A mesma receita vale para [pacientes](/pacientes): `GET /patients?updated_since=...` segue a mesma ordem e a mesma paginação. Pacientes não têm webhooks, então ali o polling é o único caminho.
+
 ## Cancelamentos não desaparecem
 
 Um agendamento cancelado **continua aparecendo** nos resultados, com `status: "cancelled"` — ele não é removido da resposta. Uma sincronização que trata "ausência na lista" como "foi excluído" vai ficar errada: agendamentos fora da janela de datas ou de status filtrados simplesmente não aparecem por não corresponderem ao filtro, o que é diferente de terem sido cancelados.

@@ -1,6 +1,15 @@
 {
   "components": {
     "schemas": {
+      "GenderEnum": {
+        "description": "* `M` - M\n* `F` - F\n* `O` - O",
+        "enum": [
+          "M",
+          "F",
+          "O"
+        ],
+        "type": "string"
+      },
       "ModalityEnum": {
         "description": "* `in_person` - Presencial\n* `telehealth` - Teleconsulta",
         "enum": [
@@ -44,6 +53,32 @@
         ],
         "type": "object"
       },
+      "PaginatedPublicPatientList": {
+        "properties": {
+          "next": {
+            "example": "https://api.bydoctor.com.br/api/public/v1/patients?cursor=cD00ODY%3D",
+            "format": "uri",
+            "nullable": true,
+            "type": "string"
+          },
+          "previous": {
+            "example": "https://api.bydoctor.com.br/api/public/v1/patients?cursor=cj0xJnA9NDg3",
+            "format": "uri",
+            "nullable": true,
+            "type": "string"
+          },
+          "results": {
+            "items": {
+              "$ref": "#/components/schemas/PublicPatient"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "results"
+        ],
+        "type": "object"
+      },
       "PatchedPublicAppointmentUpdate": {
         "description": "Corpo para alterar um agendamento. Envie apenas os campos que mudam.",
         "properties": {
@@ -73,6 +108,49 @@
               }
             ],
             "description": "`scheduled` ou `confirmed`. Os demais status são definidos apenas pelo aplicativo.\n\n* `scheduled` - scheduled\n* `confirmed` - confirmed"
+          }
+        },
+        "type": "object"
+      },
+      "PatchedPublicPatientUpdate": {
+        "description": "Corpo para alterar um paciente. Envie apenas os campos que mudam; `null` apaga `phone`,\n`email`, `cpf` ou `birth_date`.",
+        "properties": {
+          "birth_date": {
+            "description": "Data de nascimento, `AAAA-MM-DD`.",
+            "format": "date",
+            "nullable": true,
+            "type": "string"
+          },
+          "cpf": {
+            "description": "Com ou sem pontuação. Validado pelo dígito.",
+            "maxLength": 20,
+            "nullable": true,
+            "type": "string"
+          },
+          "email": {
+            "format": "email",
+            "maxLength": 100,
+            "nullable": true,
+            "type": "string"
+          },
+          "gender": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/GenderEnum"
+              }
+            ],
+            "description": "`F` (feminino), `M` (masculino) ou `O` (outro).\n\n* `M` - M\n* `F` - F\n* `O` - O"
+          },
+          "name": {
+            "description": "Nome completo.",
+            "maxLength": 255,
+            "type": "string"
+          },
+          "phone": {
+            "description": "Celular com DDD. Sem `+`, números de 10 ou 11 dígitos são lidos como brasileiros.",
+            "maxLength": 40,
+            "nullable": true,
+            "type": "string"
           }
         },
         "type": "object"
@@ -259,6 +337,93 @@
         ],
         "type": "string"
       },
+      "PublicPatient": {
+        "description": "Paciente da clínica. CPF, e-mail, data de nascimento e sexo são aceitos na escrita, mas nunca\ndevolvidos: por minimização de dados (LGPD, art. 6º, III), a API só retorna o necessário para\nagendar.",
+        "properties": {
+          "active": {
+            "description": "`false` quando a clínica inativou o paciente.",
+            "type": "boolean"
+          },
+          "created_at": {
+            "format": "date-time",
+            "readOnly": true,
+            "type": "string"
+          },
+          "id": {
+            "description": "Use como `patient_id` nos agendamentos.",
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "phone": {
+            "nullable": true,
+            "readOnly": true,
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "readOnly": true,
+            "type": "string"
+          }
+        },
+        "required": [
+          "active",
+          "created_at",
+          "id",
+          "name",
+          "phone",
+          "updated_at"
+        ],
+        "type": "object"
+      },
+      "PublicPatientCreate": {
+        "description": "Corpo para criar um paciente. Só `name` e `gender` são obrigatórios.",
+        "properties": {
+          "birth_date": {
+            "description": "Data de nascimento, `AAAA-MM-DD`.",
+            "format": "date",
+            "nullable": true,
+            "type": "string"
+          },
+          "cpf": {
+            "description": "Com ou sem pontuação. Validado pelo dígito.",
+            "maxLength": 20,
+            "nullable": true,
+            "type": "string"
+          },
+          "email": {
+            "format": "email",
+            "maxLength": 100,
+            "nullable": true,
+            "type": "string"
+          },
+          "gender": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/GenderEnum"
+              }
+            ],
+            "description": "`F` (feminino), `M` (masculino) ou `O` (outro).\n\n* `M` - M\n* `F` - F\n* `O` - O"
+          },
+          "name": {
+            "description": "Nome completo.",
+            "maxLength": 255,
+            "type": "string"
+          },
+          "phone": {
+            "description": "Celular com DDD. Sem `+`, números de 10 ou 11 dígitos são lidos como brasileiros.",
+            "maxLength": 40,
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "required": [
+          "gender",
+          "name"
+        ],
+        "type": "object"
+      },
       "RoomSummary": {
         "description": "Sala em que o atendimento acontece, quando a clínica usa salas.",
         "properties": {
@@ -416,7 +581,7 @@
         "operationId": "appointments_create",
         "parameters": [
           {
-            "description": "Chave opcional (até 255 caracteres) que torna a criação idempotente: repetir a mesma requisição com a mesma chave em até 24 horas devolve o agendamento já criado, com o cabeçalho `Idempotent-Replayed: true`, em vez de criar outro. A mesma chave com um corpo diferente responde `422`.",
+            "description": "Chave opcional (até 255 caracteres) que torna a criação idempotente: repetir a mesma requisição com a mesma chave em até 24 horas devolve o registro já criado, com o cabeçalho `Idempotent-Replayed: true`, em vez de criar outro. A mesma chave com um corpo diferente, ou em outro endpoint, responde `422`.",
             "in": "header",
             "name": "Idempotency-Key",
             "schema": {
@@ -595,6 +760,241 @@
         "summary": "Cancelar um agendamento",
         "tags": [
           "appointments"
+        ]
+      }
+    },
+    "/api/public/v1/patients": {
+      "get": {
+        "description": "Retorna os pacientes da clínica em ordem crescente de atualização (`updated_at` mais antigo primeiro), com paginação por cursor, e aceita `updated_since` para sincronizar, como nos agendamentos. Para não duplicar cadastros, procure por `cpf` ou `phone` (busca exata) antes de criar. Sem o filtro `active`, a lista inclui pacientes inativos. Requer o escopo `patients:read`.",
+        "operationId": "patients_list",
+        "parameters": [
+          {
+            "description": "`true` só ativos, `false` só inativos. Omitido, a lista inclui os dois.",
+            "in": "query",
+            "name": "active",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "CPF exato, com ou sem pontuação. Use para encontrar um paciente antes de criá-lo.",
+            "in": "query",
+            "name": "cpf",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Cursor de paginação retornado em `next`/`previous`.",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Busca parcial pelo nome, sem diferenciar maiúsculas nem acentos.",
+            "in": "query",
+            "name": "name",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Resultados por página (padrão 50, máximo 100).",
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Telefone exato, em qualquer formatação. Sem `+`, números de 10 ou 11 dígitos são lidos como brasileiros.",
+            "in": "query",
+            "name": "phone",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "updated_since",
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaginatedPublicPatientList"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "summary": "Listar pacientes",
+        "tags": [
+          "patients"
+        ]
+      },
+      "post": {
+        "description": "Cria um paciente e devolve o objeto com o `id` a usar como `patient_id` em `POST /appointments`. Requer o escopo `patients:write`. Envie `Idempotency-Key` para poder repetir a chamada com segurança. Responde `409` com `code` `patient_cpf_exists` quando outro paciente da clínica já tem o mesmo CPF: busque-o com `GET /patients?cpf=`. CPF, e-mail, data de nascimento e sexo são gravados, mas não voltam na resposta.",
+        "operationId": "patients_create",
+        "parameters": [
+          {
+            "description": "Chave opcional (até 255 caracteres) que torna a criação idempotente: repetir a mesma requisição com a mesma chave em até 24 horas devolve o registro já criado, com o cabeçalho `Idempotent-Replayed: true`, em vez de criar outro. A mesma chave com um corpo diferente, ou em outro endpoint, responde `422`.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PublicPatientCreate"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/PublicPatientCreate"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/PublicPatientCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicPatient"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "summary": "Criar um paciente",
+        "tags": [
+          "patients"
+        ]
+      }
+    },
+    "/api/public/v1/patients/{id}": {
+      "get": {
+        "description": "Retorna um paciente pelo `id`: o mesmo `patient.id` dos agendamentos e o `patient_id` aceito em `POST /appointments`. Requer o escopo `patients:read`.",
+        "operationId": "patients_retrieve",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "pattern": "^\\d+$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicPatient"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "summary": "Consultar um paciente",
+        "tags": [
+          "patients"
+        ]
+      },
+      "patch": {
+        "description": "Altera apenas os campos enviados; `null` apaga `phone`, `email`, `cpf` ou `birth_date`. Requer o escopo `patients:write`. Responde `409` com `code` `patient_cpf_exists` quando o CPF pertence a outro paciente da clínica.",
+        "operationId": "patients_partial_update",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "pattern": "^\\d+$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PatchedPublicPatientUpdate"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/PatchedPublicPatientUpdate"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/PatchedPublicPatientUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicPatient"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "summary": "Alterar um paciente",
+        "tags": [
+          "patients"
         ]
       }
     }
