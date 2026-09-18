@@ -1,6 +1,22 @@
 {
   "components": {
     "schemas": {
+      "AppointmentTypeSummary": {
+        "description": "Tipo de atendimento do agendamento, como \"Consulta\" ou \"Retorno\".",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ],
+        "type": "object"
+      },
       "GenderEnum": {
         "description": "* `M` - M\n* `F` - F\n* `O` - O",
         "enum": [
@@ -53,6 +69,32 @@
         ],
         "type": "object"
       },
+      "PaginatedPublicAppointmentTypeList": {
+        "properties": {
+          "next": {
+            "example": "https://api.bydoctor.com.br/api/public/v1/appointment-types?cursor=cD00ODY%3D",
+            "format": "uri",
+            "nullable": true,
+            "type": "string"
+          },
+          "previous": {
+            "example": "https://api.bydoctor.com.br/api/public/v1/appointment-types?cursor=cj0xJnA9NDg3",
+            "format": "uri",
+            "nullable": true,
+            "type": "string"
+          },
+          "results": {
+            "items": {
+              "$ref": "#/components/schemas/PublicAppointmentType"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "results"
+        ],
+        "type": "object"
+      },
       "PaginatedPublicPatientList": {
         "properties": {
           "next": {
@@ -70,6 +112,58 @@
           "results": {
             "items": {
               "$ref": "#/components/schemas/PublicPatient"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "results"
+        ],
+        "type": "object"
+      },
+      "PaginatedPublicProfessionalList": {
+        "properties": {
+          "next": {
+            "example": "https://api.bydoctor.com.br/api/public/v1/professionals?cursor=cD00ODY%3D",
+            "format": "uri",
+            "nullable": true,
+            "type": "string"
+          },
+          "previous": {
+            "example": "https://api.bydoctor.com.br/api/public/v1/professionals?cursor=cj0xJnA9NDg3",
+            "format": "uri",
+            "nullable": true,
+            "type": "string"
+          },
+          "results": {
+            "items": {
+              "$ref": "#/components/schemas/PublicProfessional"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "results"
+        ],
+        "type": "object"
+      },
+      "PaginatedPublicRoomList": {
+        "properties": {
+          "next": {
+            "example": "https://api.bydoctor.com.br/api/public/v1/rooms?cursor=cD00ODY%3D",
+            "format": "uri",
+            "nullable": true,
+            "type": "string"
+          },
+          "previous": {
+            "example": "https://api.bydoctor.com.br/api/public/v1/rooms?cursor=cj0xJnA9NDg3",
+            "format": "uri",
+            "nullable": true,
+            "type": "string"
+          },
+          "results": {
+            "items": {
+              "$ref": "#/components/schemas/PublicRoom"
             },
             "type": "array"
           }
@@ -199,6 +293,14 @@
       },
       "PublicAppointment": {
         "properties": {
+          "appointment_type": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AppointmentTypeSummary"
+              }
+            ],
+            "readOnly": true
+          },
           "created_at": {
             "format": "date-time",
             "readOnly": true,
@@ -269,6 +371,7 @@
           }
         },
         "required": [
+          "appointment_type",
           "created_at",
           "end_at",
           "id",
@@ -284,8 +387,12 @@
         "type": "object"
       },
       "PublicAppointmentCreate": {
-        "description": "Corpo para criar um agendamento. O agendamento nasce presencial, com\n`status: \"scheduled\"` e `origin: \"api\"`, no tipo \"Consulta\" da clínica e\ncom o pagador Particular do profissional.",
+        "description": "Corpo para criar um agendamento. O agendamento nasce presencial, com\n`status: \"scheduled\"` e `origin: \"api\"`, no tipo informado e com o pagador\nParticular do profissional; o valor vem da tabela de preços da clínica.",
         "properties": {
+          "appointment_type_id": {
+            "description": "`id` de um tipo de atendimento ativo da clínica (`GET /appointment-types`).",
+            "type": "integer"
+          },
           "note": {
             "description": "Observação interna do agendamento, até 2000 caracteres.",
             "maxLength": 2000,
@@ -311,6 +418,7 @@
           }
         },
         "required": [
+          "appointment_type_id",
           "patient_id",
           "professional_id",
           "start_at"
@@ -328,6 +436,22 @@
           "cancelled"
         ],
         "type": "string"
+      },
+      "PublicAppointmentType": {
+        "description": "Tipo de atendimento ativo da clínica. Use o `id` como `appointment_type_id` ao criar um agendamento.",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ],
+        "type": "object"
       },
       "PublicAppointmentUpdateStatusEnum": {
         "description": "* `scheduled` - scheduled\n* `confirmed` - confirmed",
@@ -424,6 +548,43 @@
         ],
         "type": "object"
       },
+      "PublicProfessional": {
+        "description": "Profissional da clínica que atende pacientes. Use o `id` como `professional_id` nos agendamentos.",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "specialty": {
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "specialty"
+        ],
+        "type": "object"
+      },
+      "PublicRoom": {
+        "description": "Sala ativa da clínica. Use o `id` como `room_id` nos agendamentos.",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ],
+        "type": "object"
+      },
       "RoomSummary": {
         "description": "Sala em que o atendimento acontece, quando a clínica usa salas.",
         "properties": {
@@ -456,6 +617,91 @@
   },
   "openapi": "3.0.3",
   "paths": {
+    "/api/public/v1/appointment-types": {
+      "get": {
+        "description": "Retorna os tipos de atendimento ativos da clínica (como \"Consulta\" e \"Retorno\"): os `id` aceitos como `appointment_type_id` em `POST /appointments`. Requer o escopo `appointments:read`.",
+        "operationId": "appointment_types_list",
+        "parameters": [
+          {
+            "description": "Cursor de paginação retornado em `next`/`previous`.",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Resultados por página (padrão 50, máximo 100).",
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaginatedPublicAppointmentTypeList"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "summary": "Listar tipos de atendimento",
+        "tags": [
+          "appointment-types"
+        ]
+      }
+    },
+    "/api/public/v1/appointment-types/{id}": {
+      "get": {
+        "description": "Retorna um tipo de atendimento ativo da clínica pelo `id`. Requer o escopo `appointments:read`.",
+        "operationId": "appointment_types_retrieve",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "pattern": "^\\d+$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicAppointmentType"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "summary": "Consultar um tipo de atendimento",
+        "tags": [
+          "appointment-types"
+        ]
+      }
+    },
     "/api/public/v1/appointments": {
       "get": {
         "description": "Retorna os agendamentos da clínica em ordem crescente de atualização (`updated_at` mais antigo primeiro), com paginação por cursor — siga `next` até o fim para obter tudo. Use `updated_since` para sincronizar apenas o que mudou desde a última consulta: agendamentos cancelados continuam aparecendo com `status: \"cancelled\"` em vez de desaparecerem da lista.",
@@ -577,7 +823,7 @@
         ]
       },
       "post": {
-        "description": "Cria um agendamento presencial com `status: \"scheduled\"` e `origin: \"api\"`, no tipo \"Consulta\" da clínica e com o pagador Particular do profissional. Requer o escopo `appointments:write`. Envie `Idempotency-Key` para poder repetir a chamada com segurança. Responde `409` com `code` `slot_blocked` (horário bloqueado na agenda do profissional) ou `room_required` (a clínica exige sala e a grade do profissional não tem sala padrão para o horário). O corpo da resposta é o mesmo objeto de `GET`.",
+        "description": "Cria um agendamento presencial com `status: \"scheduled\"` e `origin: \"api\"`, no tipo de atendimento informado em `appointment_type_id` (veja `GET /appointment-types`) e com o pagador Particular do profissional; o valor vem da tabela de preços da clínica. Requer o escopo `appointments:write`. Envie `Idempotency-Key` para poder repetir a chamada com segurança. Responde `409` com `code` `slot_blocked` (horário bloqueado na agenda do profissional) ou `room_required` (a clínica exige sala e a grade do profissional não tem sala padrão para o horário). O corpo da resposta é o mesmo objeto de `GET`.",
         "operationId": "appointments_create",
         "parameters": [
           {
@@ -995,6 +1241,176 @@
         "summary": "Alterar um paciente",
         "tags": [
           "patients"
+        ]
+      }
+    },
+    "/api/public/v1/professionals": {
+      "get": {
+        "description": "Retorna os profissionais ativos da clínica que atendem pacientes: exatamente os `id` aceitos como `professional_id` em `POST /appointments`. Traz só nome e especialidade principal. Requer o escopo `appointments:read`.",
+        "operationId": "professionals_list",
+        "parameters": [
+          {
+            "description": "Cursor de paginação retornado em `next`/`previous`.",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Resultados por página (padrão 50, máximo 100).",
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaginatedPublicProfessionalList"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "summary": "Listar profissionais",
+        "tags": [
+          "professionals"
+        ]
+      }
+    },
+    "/api/public/v1/professionals/{id}": {
+      "get": {
+        "description": "Retorna um profissional ativo da clínica pelo `id`. Requer o escopo `appointments:read`.",
+        "operationId": "professionals_retrieve",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "pattern": "^\\d+$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicProfessional"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "summary": "Consultar um profissional",
+        "tags": [
+          "professionals"
+        ]
+      }
+    },
+    "/api/public/v1/rooms": {
+      "get": {
+        "description": "Retorna as salas ativas da clínica: os `id` aceitos como `room_id` nos agendamentos. Vazia quando a clínica não usa salas. Requer o escopo `appointments:read`.",
+        "operationId": "rooms_list",
+        "parameters": [
+          {
+            "description": "Cursor de paginação retornado em `next`/`previous`.",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Resultados por página (padrão 50, máximo 100).",
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaginatedPublicRoomList"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "summary": "Listar salas",
+        "tags": [
+          "rooms"
+        ]
+      }
+    },
+    "/api/public/v1/rooms/{id}": {
+      "get": {
+        "description": "Retorna uma sala ativa da clínica pelo `id`. Requer o escopo `appointments:read`.",
+        "operationId": "rooms_retrieve",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "pattern": "^\\d+$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicRoom"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "summary": "Consultar uma sala",
+        "tags": [
+          "rooms"
         ]
       }
     }

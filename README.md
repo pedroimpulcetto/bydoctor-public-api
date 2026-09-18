@@ -2,7 +2,7 @@
 
 Source for the ByDoctor public API developer documentation, published at **https://docs.bydoctor.com.br**. Built with [Mintlify](https://mintlify.com).
 
-This is the canonical reference for clinic software vendors and in-house developers integrating with ByDoctor's appointments and patients API (per-key `appointments:read|write` and `patients:read|write` scopes) and real-time webhooks.
+This is the canonical reference for clinic software vendors and in-house developers integrating with ByDoctor's appointments and patients API (per-key `appointments:read|write` and `patients:read|write` scopes), the read-only professionals/rooms/appointment-types lists, and real-time webhooks.
 
 ## `openapi.json` is a generated file
 

@@ -1,0 +1,52 @@
+---
+title: "Profissionais"
+description: "Listar os profissionais da clínica que atendem pacientes para obter o professional_id usado na criação de agendamentos."
+---
+
+A lista traz os membros ativos da clínica que atendem pacientes: são exatamente os `id` aceitos como `professional_id` em [`POST /appointments`](/agendamentos#criar-um-agendamento). Administradores e equipe que não atendem não aparecem.
+
+| Método | Rota | Descrição |
+|---|---|---|
+| `GET` | `/professionals` | Lista os profissionais ativos que atendem pacientes |
+| `GET` | `/professionals/{id}` | Detalhe de um profissional |
+
+As duas rotas exigem o escopo `appointments:read`, que toda chave já tem. Não há escrita: profissionais são cadastrados no aplicativo.
+
+## Listar profissionais
+
+```bash
+curl -H "Authorization: Bearer bd_live_xxxxxxxx.yyyy" \
+  "https://api.bydoctor.com.br/api/public/v1/professionals"
+```
+
+```json
+{
+  "next": null,
+  "previous": null,
+  "results": [
+    { "id": 12, "name": "Dr. João Souza", "specialty": "Cardiologia" },
+    { "id": 15, "name": "Dra. Ana Lima", "specialty": null }
+  ]
+}
+```
+
+A resposta tem o mesmo formato paginado das outras listas (`next`, `previous`, `results`), em ordem de `id`.
+
+| Campo | Tipo | Descrição |
+|---|---|---|
+| `id` | `integer` | Use como `professional_id`. É o mesmo `professional.id` dos agendamentos. |
+| `name` | `string` | Nome com o título cadastrado, como "Dra. Ana Lima". |
+| `specialty` | `string` ou `null` | Especialidade principal. |
+
+## Buscar um profissional
+
+```bash
+curl -H "Authorization: Bearer bd_live_xxxxxxxx.yyyy" \
+  "https://api.bydoctor.com.br/api/public/v1/professionals/12"
+```
+
+Um `id` inexistente, inativo ou de outra clínica responde `404 Not Found`.
+
+## O que a API não devolve
+
+O objeto é o mesmo bloco `professional` que já vem em cada agendamento. Por minimização de dados (LGPD, art. 6º, III), a API não devolve e-mail, telefone, CPF, foto nem número de registro no conselho do profissional: nenhum deles é necessário para agendar.

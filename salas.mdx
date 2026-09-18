@@ -1,0 +1,44 @@
+---
+title: "Salas"
+description: "Listar as salas da clínica para obter o room_id usado na criação de agendamentos."
+---
+
+A lista traz as salas ativas da clínica: são os `id` aceitos como `room_id` em [`POST /appointments`](/agendamentos#criar-um-agendamento) e `PATCH /appointments/{id}`. Ela vem vazia quando a clínica não usa salas.
+
+| Método | Rota | Descrição |
+|---|---|---|
+| `GET` | `/rooms` | Lista as salas ativas |
+| `GET` | `/rooms/{id}` | Detalhe de uma sala |
+
+As duas rotas exigem o escopo `appointments:read`, que toda chave já tem. Não há escrita: salas são cadastradas no aplicativo.
+
+## Listar salas
+
+```bash
+curl -H "Authorization: Bearer bd_live_xxxxxxxx.yyyy" \
+  "https://api.bydoctor.com.br/api/public/v1/rooms"
+```
+
+```json
+{ "next": null, "previous": null, "results": [{ "id": 3, "name": "Sala 2" }] }
+```
+
+A resposta tem o mesmo formato paginado das outras listas (`next`, `previous`, `results`), em ordem de `id`.
+
+| Campo | Tipo | Descrição |
+|---|---|---|
+| `id` | `integer` | Use como `room_id`. É o mesmo `room.id` dos agendamentos. |
+| `name` | `string` | Nome da sala. |
+
+## Buscar uma sala
+
+```bash
+curl -H "Authorization: Bearer bd_live_xxxxxxxx.yyyy" \
+  "https://api.bydoctor.com.br/api/public/v1/rooms/3"
+```
+
+Um `id` inexistente, inativo ou de outra clínica responde `404 Not Found`.
+
+## Quando enviar `room_id`
+
+Enviar `room_id` é opcional: sem ele, a API usa a sala padrão da grade do profissional. Se a clínica exige sala e a grade não tem uma sala padrão para o horário, a criação responde `409` com `code: "room_required"`. Escolha uma sala desta lista e repita a chamada com `room_id`.
