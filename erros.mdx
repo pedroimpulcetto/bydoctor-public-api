@@ -1,0 +1,88 @@
+---
+title: "Erros"
+description: "Formato das respostas de erro da API, as regras de formato de datas, ids e escolhas, e as mensagens exatas de cada validação."
+---
+
+Toda resposta de erro diz o que foi recusado **e o que é aceito**. As mensagens vêm em inglês; os campos e os códigos são estáveis. Ramifique pelo status HTTP e, no `409`, pelo `code`, nunca pelo texto.
+
+## Formato por status
+
+| Status | Corpo | Quando |
+|---|---|---|
+| `400 Bad Request` | `{"campo": ["mensagem"]}`, uma lista por campo | Corpo ou filtro inválido. Vários campos podem vir juntos. Um erro que não é de um campo específico vem em `non_field_errors`. |
+| `401 Unauthorized` | `{"detail": "mensagem"}` | Chave ausente, mal formatada, inválida, revogada ou expirada. |
+| `403 Forbidden` | `{"detail": "mensagem"}` | A chave não tem o escopo da rota. A mensagem nomeia o escopo. |
+| `404 Not Found` | `{"detail": "mensagem"}` | `id` inexistente, inativo ou de outra clínica. A mensagem nomeia o recurso. |
+| `405 Method Not Allowed` | `{"detail": "mensagem"}` | Método que a rota não aceita, como `DELETE`. |
+| `409 Conflict` | `{"code": "...", "detail": "mensagem"}` | Uma regra de negócio recusou a escrita. Veja os códigos em [Agendamentos](/agendamentos#erros) e [Pacientes](/pacientes#erros). |
+| `415 Unsupported Media Type` | `{"detail": "mensagem"}` | Corpo num formato que a API não lê, como `text/plain`. Envie JSON com `Content-Type: application/json`. |
+| `422 Unprocessable Entity` | `{"code": "idempotency_key_reused", "detail": "mensagem"}` | `Idempotency-Key` repetida com outro corpo ou em outro endpoint. |
+| `429 Too Many Requests` | `{"detail": "mensagem"}` + cabeçalho `Retry-After` | Limite de requisições excedido. |
+
+Um JSON malformado (por exemplo, uma vírgula depois do último campo) responde `400` com `{"detail": "JSON parse error - ..."}`, apontando a linha e a coluna do problema.
+
+## Formatos aceitos
+
+Estas regras valem para o corpo e para os filtros de todas as rotas.
+
+| Tipo | Formato | Exemplo | Mensagem quando inválido |
+|---|---|---|---|
+| Data e hora | ISO 8601, **ano-mês-dia**: `YYYY-MM-DDThh:mm[:ss][+HH:MM\|-HH:MM\|Z]`. Sem fuso, é lida em `America/Sao_Paulo`. | `2026-10-03T14:00:00-03:00` | `Invalid date-time. Use ISO 8601 in year-month-day order: ...` |
+| Data | `YYYY-MM-DD`, **ano-mês-dia** | `1990-05-10` | `Invalid date. Use YYYY-MM-DD (year-month-day), e.g. 1990-05-10.` |
+| Id | Número inteiro | `123` | `Must be an integer id, e.g. 123.` |
+| Escolha | Um dos valores listados na mensagem | `"M"` | `"X" is not a valid choice. Use one of: M, F, O.` |
+| Campo obrigatório | — | — | `This field is required.` (em campos de escolha, seguido de `Use one of: ...`) |
+
+<Warning>
+  `2026-18-07` não é 18 de julho: a ordem é sempre ano-mês-dia, então o `18` é lido como mês e a data é recusada. Para 18 de julho de 2026, envie `2026-07-18`.
+</Warning>
+
+## Mensagens de validação
+
+### Agendamentos
+
+| Campo | Mensagem | Como resolver |
+|---|---|---|
+| `start_at` | `start_at must be on a whole minute: seconds and fractions must be 00, e.g. 2026-10-03T14:00:00-03:00.` | Zere os segundos. |
+| `start_at` | `start_at must be between AAAA-MM-DD and AAAA-MM-DD (one year in the past to two years in the future).` | A mensagem traz as datas-limite do dia. |
+| `patient_id` | `No active patient with this id in your clinic. Find or create one with GET /patients and POST /patients.` | Veja [Pacientes](/pacientes). |
+| `professional_id` | `No active professional with this id in your clinic. List them with GET /professionals.` | Veja [Profissionais](/profissionais). |
+| `appointment_type_id` | `No active appointment type with this id in your clinic. List them with GET /appointment-types.` | Veja [Tipos de atendimento](/tipos-de-atendimento). |
+| `room_id` | `No active room with this id in your clinic. List them with GET /rooms.` | Veja [Salas](/salas). |
+| `status` | `"X" is not a valid choice. Use one of: scheduled, confirmed.` | Só esses dois status são escritos pela API. |
+| `non_field_errors` | `Send at least one field to change.` | `PATCH` com corpo vazio. |
+
+Um id de outra clínica recebe a mesma mensagem de um id inexistente: a API nunca confirma que um id existe fora da sua clínica.
+
+### Pacientes
+
+| Campo | Mensagem | Como resolver |
+|---|---|---|
+| `gender` | `This field is required. Use one of: M, F, O.` | `M`, `F` ou `O`. |
+| `cpf` | `Invalid CPF: it must have 11 digits with valid check digits, with or without punctuation (e.g. 529.982.247-25). CPFs with every digit repeated, like 999.999.999-99, are rejected.` | Envie um CPF real; os dígitos verificadores são conferidos. |
+| `phone` | `Invalid phone number: send the area code (DDD) and number, e.g. (11) 98765-4321 or +5511987654321. Without a leading +, 10 or 11 digits are read as a Brazilian number.` | Inclua o DDD. |
+| `birth_date` | `birth_date cannot be in the future.` | — |
+| `non_field_errors` | `Send at least one field to change.` | `PATCH` com corpo vazio. |
+
+### Filtros
+
+| Parâmetro | Mensagem |
+|---|---|
+| `status` | `Unknown status. Use one of: requested, scheduled, confirmed, checked_in, completed, no_show, cancelled.` |
+| `start_date` | `start_date cannot be after end_date.` |
+| `end_date` | `end_date must be at most 92 days after start_date.` |
+| `active` | `Use "true" or "false".` |
+| `cpf`, `phone` | As mesmas mensagens da escrita de pacientes. |
+
+Parâmetros que a rota não conhece são ignorados, não recusados. Confira o nome do filtro se o resultado não mudar.
+
+## 401, 403 e 404
+
+| Status | Mensagem |
+|---|---|
+| `401` | `Authentication credentials were not provided. Send your API key as "Authorization: Bearer <key>".` |
+| `401` | `Invalid Authorization header format. Send your API key as "Authorization: Bearer <key>".` |
+| `401` | `Invalid API key. Check it was copied whole, or create a new one in Minha Clínica → API e Webhooks.` |
+| `401` | `API key is revoked or expired. Create a new one in Minha Clínica → API e Webhooks.` |
+| `403` | `This API key does not have the "patients:write" scope.` (com o escopo que a rota exige) |
+| `404` | `No patient with this id in your clinic.` (com o recurso da rota: `appointment`, `patient`, `professional`, `room`, `appointment type`) |

@@ -44,7 +44,7 @@ curl -H "Authorization: Bearer bd_live_xxxxxxxx.yyyy" \
   "https://api.bydoctor.com.br/api/public/v1/appointment-types/4"
 ```
 
-Um `id` inexistente, inativo ou de outra clínica responde `404 Not Found`.
+Um `id` inexistente, inativo ou de outra clínica responde `404 Not Found` com `{"detail": "No appointment type with this id in your clinic."}`.
 
 ## Tipo e valor do agendamento
 

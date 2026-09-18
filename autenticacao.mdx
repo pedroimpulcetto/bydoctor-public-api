@@ -30,6 +30,8 @@ Na criação, em **Minha Clínica → API e Webhooks**, você escolhe o acesso d
 
 Por padrão uma chave nasce **somente leitura**; a escrita é concedida por chave, de forma explícita. Os escopos de uma chave não podem ser alterados depois — crie uma chave nova e revogue a antiga.
 
+Uma chave sem o escopo recebe `403` com a mensagem `This API key does not have the "patients:write" scope.`, nomeando o escopo que falta. Chave ausente, mal formatada, inválida, revogada ou expirada recebe `401` com o motivo; veja [Erros](/erros#401-403-e-404).
+
 Chaves criadas antes da escrita existir continuam somente leitura, e chaves criadas antes dos [pacientes](/pacientes) existirem não recebem os escopos de pacientes: o acesso ao cadastro de pacientes nunca é concedido a uma chave existente sem que a clínica crie uma nova.
 
 ## Revogação e expiração

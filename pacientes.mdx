@@ -96,7 +96,7 @@ A resposta tem o mesmo formato paginado dos agendamentos: `next`, `previous` e `
 | `cpf` | `string` | CPF exato, com ou sem pontuação. Um CPF inválido responde `400`. |
 | `phone` | `string` | Telefone exato, em qualquer formatação. Sem `+`, números de 10 ou 11 dígitos são lidos como brasileiros. |
 | `name` | `string` | Busca parcial pelo nome, sem diferenciar maiúsculas nem acentos: `joao conce` encontra "João da Conceição". |
-| `active` | `boolean` | `true` retorna só ativos, `false` só inativos. **Omitido, a lista inclui os dois.** |
+| `active` | `boolean` | `true` retorna só ativos, `false` só inativos. **Omitido, a lista inclui os dois.** Qualquer outro valor responde `400`. |
 | `updated_since` | `datetime` (ISO 8601) | Retorna apenas pacientes alterados a partir deste instante. |
 | `cursor` | `string` | Cursor de paginação: use o valor devolvido em `next`. |
 | `page_size` | `integer` | Itens por página. Padrão **50**, máximo **100**. |
@@ -119,11 +119,11 @@ Requer o escopo `patients:write`. Responde `201 Created` com o objeto paciente.
 | Campo | Tipo | Obrigatório | Descrição |
 |---|---|---|---|
 | `name` | `string` | sim | Nome completo, até 255 caracteres. |
-| `gender` | `string` | sim | `F` (feminino), `M` (masculino) ou `O` (outro). O aplicativo também exige este campo. |
+| `gender` | `string` | sim | `M` (masculino), `F` (feminino) ou `O` (outro). O aplicativo também exige este campo. |
 | `phone` | `string` | não | Celular com DDD, em qualquer formatação. Gravado em E.164. |
 | `email` | `string` | não | E-mail válido. |
-| `cpf` | `string` | não | Com ou sem pontuação. Validado pelos dígitos verificadores. |
-| `birth_date` | `date` | não | `AAAA-MM-DD`. Não pode estar no futuro. |
+| `cpf` | `string` | não | 11 dígitos, com ou sem pontuação. Os dígitos verificadores são conferidos, e CPFs com todos os dígitos iguais (`999.999.999-99`) são recusados. |
+| `birth_date` | `date` | não | Ano-mês-dia, `YYYY-MM-DD` (`1990-05-10`). Não pode estar no futuro. |
 
 Se outro paciente **da sua clínica** já tem o mesmo CPF, a API responde `409` com `code: "patient_cpf_exists"` e não cria nada. Busque o cadastro existente com `GET /patients?cpf=`. Um CPF cadastrado em outra clínica não interfere e nunca é revelado.
 
@@ -151,12 +151,14 @@ Não há eventos de webhook de pacientes. Para acompanhar mudanças, use `update
 
 ## Erros
 
+As mensagens exatas de cada validação estão em [Erros](/erros#pacientes).
+
 | Código | Quando acontece |
 |---|---|
-| `400 Bad Request` | Filtro ou corpo inválido, com o erro por campo, por exemplo `{"cpf": ["Invalid CPF."]}`. Inclui campo obrigatório ausente, CPF, telefone ou e-mail inválido e corpo vazio no `PATCH`. |
+| `400 Bad Request` | Filtro ou corpo inválido, com o erro por campo e o que é aceito, por exemplo `{"gender": ["This field is required. Use one of: M, F, O."]}`. Inclui campo obrigatório ausente, CPF, telefone, e-mail ou data inválidos e corpo vazio no `PATCH`. |
 | `401 Unauthorized` | Chave ausente, revogada ou expirada. |
 | `403 Forbidden` | Chave sem o escopo da rota (`patients:read` ou `patients:write`). Chaves criadas antes dos pacientes existirem não têm esses escopos: crie uma chave nova. |
-| `404 Not Found` | `id` inexistente ou de outra clínica. |
+| `404 Not Found` | `id` inexistente ou de outra clínica: `{"detail": "No patient with this id in your clinic."}`. |
 | `409 Conflict` | `code: "patient_cpf_exists"`: outro paciente da clínica já tem este CPF. |
 | `422 Unprocessable Entity` | `Idempotency-Key` reutilizada com outro corpo ou em outro endpoint (`code: "idempotency_key_reused"`). |
 | `429 Too Many Requests` | Limite de requisições excedido. Pacientes e agendamentos compartilham o mesmo limite da chave. |
