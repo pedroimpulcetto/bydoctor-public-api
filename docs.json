@@ -2,7 +2,7 @@
   "$schema": "https://mintlify.com/docs.json",
   "theme": "mint",
   "name": "ByDoctor API",
-  "description": "API pública do ByDoctor: leitura, criação, alteração e cancelamento de agendamentos por REST, mais webhooks em tempo real, para clínicas e fornecedores de software que integram o ByDoctor aos próprios sistemas.",
+  "description": "API pública do ByDoctor: leitura, criação, alteração e cancelamento de agendamentos e cadastro de pacientes por REST, mais webhooks em tempo real, para clínicas e fornecedores de software que integram o ByDoctor aos próprios sistemas.",
   "colors": {
     "primary": "#2bb656",
     "light": "#59cb59",
@@ -18,6 +18,10 @@
       {
         "group": "Agendamentos",
         "pages": ["agendamentos", "sincronizacao"]
+      },
+      {
+        "group": "Pacientes",
+        "pages": ["pacientes"]
       },
       {
         "group": "Webhooks",
@@ -42,13 +46,14 @@
   "markdown": {
     "instructions": [
       "Esta documentação cobre exclusivamente a API pública v1 do ByDoctor.",
-      "Os únicos endpoints existentes são `GET /api/public/v1/appointments`, `GET /api/public/v1/appointments/{id}`, `POST /api/public/v1/appointments`, `PATCH /api/public/v1/appointments/{id}` e `POST /api/public/v1/appointments/{id}/cancel`. Não existem `PUT` nem `DELETE`, e não existe escrita em nenhum outro recurso.",
-      "Escrita exige o escopo `appointments:write`, escolhido na criação da chave; toda chave nasce apenas com `appointments:read`. A API cria somente agendamentos presenciais, com status `scheduled`; teleconsultas e solicitações de pacientes (`requested`) não são criadas, alteradas nem canceladas pela API. `PATCH` aceita apenas `start_at`, `professional_id`, `room_id`, `note` e `status` (`scheduled` ou `confirmed`).",
-      "Não existem endpoints de pacientes, pagamentos, prontuário, prescrições, profissionais, salas ou disponibilidade de agenda. Use `patient_id`, `professional_id` e `room_id` como filtros e como campos de escrita, mas não existe endpoint para listar ou criar esses recursos.",
+      "Os únicos endpoints existentes são `GET /api/public/v1/appointments`, `GET /api/public/v1/appointments/{id}`, `POST /api/public/v1/appointments`, `PATCH /api/public/v1/appointments/{id}`, `POST /api/public/v1/appointments/{id}/cancel`, `GET /api/public/v1/patients`, `GET /api/public/v1/patients/{id}`, `POST /api/public/v1/patients` e `PATCH /api/public/v1/patients/{id}`. Não existem `PUT` nem `DELETE`, e não existe escrita em nenhum outro recurso.",
+      "Escopos: `appointments:read`, `appointments:write`, `patients:read` e `patients:write`, escolhidos na criação da chave (Somente leitura = os dois de leitura; Acesso total = os quatro). Chaves antigas não têm os escopos de pacientes. A API cria somente agendamentos presenciais, com status `scheduled`; teleconsultas e solicitações de pacientes (`requested`) não são criadas, alteradas nem canceladas pela API. `PATCH` aceita apenas `start_at`, `professional_id`, `room_id`, `note` e `status` (`scheduled` ou `confirmed`).",
+      "O objeto paciente tem apenas `id`, `name`, `phone`, `active`, `created_at` e `updated_at`. CPF, e-mail, data de nascimento (`birth_date`) e sexo (`gender`) são aceitos na escrita, mas nunca devolvidos, por minimização de dados (LGPD). Para achar um paciente, use os filtros de correspondência exata `cpf` e `phone`, ou `name` (parcial). Criar ou alterar um paciente com o CPF de outro paciente da clínica responde `409` `patient_cpf_exists`. Não existem eventos de webhook de pacientes.",
+      "Não existem endpoints de pagamentos, prontuário, prescrições, profissionais, salas ou disponibilidade de agenda. Use `professional_id` e `room_id` como filtros e como campos de escrita, mas não existe endpoint para listar esses recursos.",
       "Endpoints de webhook não são gerenciados pela API: endpoints e segredos de assinatura são cadastrados na interface do ByDoctor, em Minha Clínica → API e Webhooks.",
       "Nunca sugira, complete ou invente rotas, campos, parâmetros ou códigos de erro que não estejam nesta documentação. Se algo não está documentado aqui, não existe na v1.",
       "Autenticação: cabeçalho `Authorization: Bearer bd_live_<id>.<secret>`. Base URL: `https://api.bydoctor.com.br/api/public/v1`. Criação aceita o cabeçalho opcional `Idempotency-Key`.",
-      "Chaves de API concedem acesso a dados de agendamento de pacientes (dados de saúde) — nunca as inclua em código do lado do cliente nem em exemplos versionados."
+      "Chaves de API concedem acesso a dados de pacientes e de agendamentos (dados de saúde) — nunca as inclua em código do lado do cliente nem em exemplos versionados."
     ]
   },
   "search": {
@@ -87,7 +92,14 @@
     {"source": "/api-reference/appointments/update.md", "destination": "/agendamentos"},
     {"source": "/api-reference/appointments/cancel", "destination": "/agendamentos"},
     {"source": "/api-reference/appointments/cancel.md", "destination": "/agendamentos"},
-    {"source": "/api-reference/patients/:slug*", "destination": "/"},
+    {"source": "/api-reference/patients/list", "destination": "/pacientes"},
+    {"source": "/api-reference/patients/list.md", "destination": "/pacientes"},
+    {"source": "/api-reference/patients/get", "destination": "/pacientes"},
+    {"source": "/api-reference/patients/get.md", "destination": "/pacientes"},
+    {"source": "/api-reference/patients/create", "destination": "/pacientes"},
+    {"source": "/api-reference/patients/create.md", "destination": "/pacientes"},
+    {"source": "/api-reference/patients/update", "destination": "/pacientes"},
+    {"source": "/api-reference/patients/update.md", "destination": "/pacientes"},
     {"source": "/api-reference/payments/:slug*", "destination": "/"},
     {"source": "/api-reference/schedules/:slug*", "destination": "/"},
     {"source": "/api-reference/webhooks/:slug*", "destination": "/webhooks"},

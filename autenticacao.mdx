@@ -19,16 +19,18 @@ A chave tem duas partes separadas por um ponto: um identificador de prefixo (`bd
 
 ## Escopos
 
-Cada chave carrega um ou mais escopos, escolhidos na criação em **Minha Clínica → API e Webhooks**. Uma rota exige exatamente um escopo; uma chave sem ele recebe `403 Forbidden`.
+Na criação, em **Minha Clínica → API e Webhooks**, você escolhe o acesso da chave: **Somente leitura** (`appointments:read` + `patients:read`) ou **Acesso total** (os quatro escopos). Uma rota exige exatamente um escopo; uma chave sem ele recebe `403 Forbidden`.
 
 | Escopo | Concede |
 |---|---|
 | `appointments:read` | `GET /appointments` e `GET /appointments/{id}` |
 | `appointments:write` | `POST /appointments`, `PATCH /appointments/{id}` e `POST /appointments/{id}/cancel` |
+| `patients:read` | `GET /patients` e `GET /patients/{id}` |
+| `patients:write` | `POST /patients` e `PATCH /patients/{id}` |
 
-Por padrão uma chave nasce **somente com `appointments:read`**; a escrita é concedida por chave, de forma explícita. Os escopos são independentes: uma chave só com `appointments:write` cria e altera agendamentos, mas não lista nem consulta. Os escopos de uma chave não podem ser alterados depois — crie uma chave nova e revogue a antiga.
+Por padrão uma chave nasce **somente leitura**; a escrita é concedida por chave, de forma explícita. Os escopos de uma chave não podem ser alterados depois — crie uma chave nova e revogue a antiga.
 
-Chaves criadas antes da escrita existir continuam somente leitura.
+Chaves criadas antes da escrita existir continuam somente leitura, e chaves criadas antes dos [pacientes](/pacientes) existirem não recebem os escopos de pacientes: o acesso ao cadastro de pacientes nunca é concedido a uma chave existente sem que a clínica crie uma nova.
 
 ## Revogação e expiração
 
@@ -49,7 +51,7 @@ Ao exceder um dos limites, a API responde `429 Too Many Requests` com um cabeça
 
 ## Segurança
 
-Uma chave de API concede acesso a dados de agendamento de pacientes. Trate-a como qualquer outro segredo de produção:
+Uma chave de API concede acesso a dados de pacientes e de agendamentos, que são dados de saúde. Trate-a como qualquer outro segredo de produção:
 
 - Armazene em um cofre de segredos (secrets manager), nunca em código-fonte versionado.
 - Nunca exponha a chave em código do lado do cliente (browser, app mobile) — toda chamada deve partir de um backend seu.

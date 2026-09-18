@@ -1,0 +1,162 @@
+---
+title: "Pacientes"
+description: "Encontrar, listar, criar e alterar pacientes para usar nos agendamentos: filtros, campos, minimização de dados e códigos de erro."
+---
+
+O recurso de pacientes existe para uma tarefa: ter o `id` do paciente certo antes de criar um agendamento. Você procura o paciente pelo CPF ou pelo telefone e, se ele não existir, cria o cadastro.
+
+| Método | Rota | Escopo | Descrição |
+|---|---|---|---|
+| `GET` | `/patients` | `patients:read` | Lista pacientes, com filtros e paginação |
+| `GET` | `/patients/{id}` | `patients:read` | Detalhe de um paciente |
+| `POST` | `/patients` | `patients:write` | Cadastra um paciente |
+| `PATCH` | `/patients/{id}` | `patients:write` | Altera campos de um paciente |
+
+Nenhuma rota tem barra final. Não existem `PUT` nem `DELETE`: inativar um paciente é feito no aplicativo.
+
+O `id` do paciente é numérico. É o mesmo `patient.id` que aparece nos agendamentos, o valor do filtro `patient_id` e o campo `patient_id` de [`POST /appointments`](/agendamentos#criar-um-agendamento).
+
+## O objeto paciente
+
+```json
+{
+  "id": 981,
+  "name": "Maria Silva",
+  "phone": "+5511999998888",
+  "active": true,
+  "created_at": "2026-09-18T10:02:00-03:00",
+  "updated_at": "2026-09-18T10:02:00-03:00"
+}
+```
+
+| Campo | Tipo | Descrição |
+|---|---|---|
+| `id` | `integer` | Identificador do paciente. Use como `patient_id` nos agendamentos. |
+| `name` | `string` | Nome completo. |
+| `phone` | `string` ou `null` | Telefone cadastrado. Pacientes criados pela API ficam no formato E.164 (`+5511999998888`); cadastros antigos da clínica podem estar em outro formato, como em `patient.phone` dos agendamentos. |
+| `active` | `boolean` | `false` quando a clínica inativou o paciente. Paciente inativo não pode receber agendamento pela API. |
+| `created_at`, `updated_at` | `datetime` | Horários em `America/Sao_Paulo`. |
+
+### O que a API não devolve
+
+CPF, e-mail, data de nascimento e sexo são aceitos na criação e na alteração, mas **nunca voltam nas respostas**. Isso é deliberado. O cadastro de um paciente em uma clínica é dado de saúde (LGPD, art. 5º, II), e a identificação do paciente faz parte do prontuário (Resolução CFM 1.638/2002). Pelo princípio da necessidade (LGPD, art. 6º, III), a API devolve apenas o necessário para agendar.
+
+Você não precisa desses dados de volta para integrar:
+
+- o seu sistema já tem o que enviou;
+- para achar um paciente pelo CPF ou pelo telefone, use os filtros `cpf` e `phone`, que comparam o valor enviado sem nunca devolvê-lo.
+
+## Encontrar ou criar um paciente
+
+Esta é a receita recomendada para não duplicar cadastros:
+
+<Steps>
+  <Step title="Procure pelo CPF">
+    ```bash
+    curl -H "Authorization: Bearer bd_live_xxxxxxxx.yyyy" \
+      "https://api.bydoctor.com.br/api/public/v1/patients?cpf=529.982.247-25"
+    ```
+
+    Se `results` trouxer um paciente, use o `id` dele. Sem CPF, procure por `phone`.
+  </Step>
+  <Step title="Se não existir, crie">
+    ```bash
+    curl -X POST \
+      -H "Authorization: Bearer bd_live_xxxxxxxx.yyyy" \
+      -H "Content-Type: application/json" \
+      -H "Idempotency-Key: 5b0e7a1c-3f2d-4c8e-9a61-7d2f0c4b9e13" \
+      -d '{
+        "name": "Maria Silva",
+        "gender": "F",
+        "cpf": "529.982.247-25",
+        "phone": "(11) 99999-8888",
+        "birth_date": "1990-05-10"
+      }' \
+      "https://api.bydoctor.com.br/api/public/v1/patients"
+    ```
+  </Step>
+  <Step title="Agende com o id">
+    Envie o `id` devolvido como `patient_id` em [`POST /appointments`](/agendamentos#criar-um-agendamento).
+  </Step>
+</Steps>
+
+## Listar pacientes
+
+```bash
+curl -H "Authorization: Bearer bd_live_xxxxxxxx.yyyy" \
+  "https://api.bydoctor.com.br/api/public/v1/patients?name=maria&active=true"
+```
+
+A resposta tem o mesmo formato paginado dos agendamentos: `next`, `previous` e `results`. A ordem é crescente por `updated_at`, então a [receita de sincronização](/sincronizacao) com `updated_since` funciona igual para pacientes.
+
+### Filtros
+
+| Parâmetro | Tipo | Descrição |
+|---|---|---|
+| `cpf` | `string` | CPF exato, com ou sem pontuação. Um CPF inválido responde `400`. |
+| `phone` | `string` | Telefone exato, em qualquer formatação. Sem `+`, números de 10 ou 11 dígitos são lidos como brasileiros. |
+| `name` | `string` | Busca parcial pelo nome, sem diferenciar maiúsculas nem acentos: `joao conce` encontra "João da Conceição". |
+| `active` | `boolean` | `true` retorna só ativos, `false` só inativos. **Omitido, a lista inclui os dois.** |
+| `updated_since` | `datetime` (ISO 8601) | Retorna apenas pacientes alterados a partir deste instante. |
+| `cursor` | `string` | Cursor de paginação: use o valor devolvido em `next`. |
+| `page_size` | `integer` | Itens por página. Padrão **50**, máximo **100**. |
+
+`cpf` e `phone` só encontram correspondência exata, nunca parcial.
+
+## Buscar um paciente
+
+```bash
+curl -H "Authorization: Bearer bd_live_xxxxxxxx.yyyy" \
+  "https://api.bydoctor.com.br/api/public/v1/patients/981"
+```
+
+Um `id` inexistente ou de outra clínica responde `404 Not Found`.
+
+## Criar um paciente
+
+Requer o escopo `patients:write`. Responde `201 Created` com o objeto paciente.
+
+| Campo | Tipo | Obrigatório | Descrição |
+|---|---|---|---|
+| `name` | `string` | sim | Nome completo, até 255 caracteres. |
+| `gender` | `string` | sim | `F` (feminino), `M` (masculino) ou `O` (outro). O aplicativo também exige este campo. |
+| `phone` | `string` | não | Celular com DDD, em qualquer formatação. Gravado em E.164. |
+| `email` | `string` | não | E-mail válido. |
+| `cpf` | `string` | não | Com ou sem pontuação. Validado pelos dígitos verificadores. |
+| `birth_date` | `date` | não | `AAAA-MM-DD`. Não pode estar no futuro. |
+
+Se outro paciente **da sua clínica** já tem o mesmo CPF, a API responde `409` com `code: "patient_cpf_exists"` e não cria nada. Busque o cadastro existente com `GET /patients?cpf=`. Um CPF cadastrado em outra clínica não interfere e nunca é revelado.
+
+O cabeçalho `Idempotency-Key` funciona como na [criação de agendamentos](/agendamentos#idempotency-key): repetir a mesma requisição com a mesma chave em até 24 horas devolve o paciente já criado, com `Idempotent-Replayed: true`.
+
+## Alterar um paciente
+
+Requer o escopo `patients:write`. Envie **apenas os campos que mudam**. O corpo vazio responde `400`.
+
+```bash
+curl -X PATCH \
+  -H "Authorization: Bearer bd_live_xxxxxxxx.yyyy" \
+  -H "Content-Type: application/json" \
+  -d '{ "phone": "(11) 98888-7777", "email": null }' \
+  "https://api.bydoctor.com.br/api/public/v1/patients/981"
+```
+
+Os campos são os mesmos da criação, todos opcionais. `null` apaga `phone`, `email`, `cpf` ou `birth_date`; `name` e `gender` não podem ser apagados. Trocar o CPF para um que já pertence a outro paciente da clínica responde `409` `patient_cpf_exists`.
+
+Responde `200 OK` com o objeto atualizado.
+
+## Webhooks
+
+Não há eventos de webhook de pacientes. Para acompanhar mudanças, use `updated_since`.
+
+## Erros
+
+| Código | Quando acontece |
+|---|---|
+| `400 Bad Request` | Filtro ou corpo inválido, com o erro por campo, por exemplo `{"cpf": ["Invalid CPF."]}`. Inclui campo obrigatório ausente, CPF, telefone ou e-mail inválido e corpo vazio no `PATCH`. |
+| `401 Unauthorized` | Chave ausente, revogada ou expirada. |
+| `403 Forbidden` | Chave sem o escopo da rota (`patients:read` ou `patients:write`). Chaves criadas antes dos pacientes existirem não têm esses escopos: crie uma chave nova. |
+| `404 Not Found` | `id` inexistente ou de outra clínica. |
+| `409 Conflict` | `code: "patient_cpf_exists"`: outro paciente da clínica já tem este CPF. |
+| `422 Unprocessable Entity` | `Idempotency-Key` reutilizada com outro corpo ou em outro endpoint (`code: "idempotency_key_reused"`). |
+| `429 Too Many Requests` | Limite de requisições excedido. Pacientes e agendamentos compartilham o mesmo limite da chave. |

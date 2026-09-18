@@ -1,11 +1,11 @@
 ---
 title: "API do ByDoctor"
-description: "Leia, crie, altere e cancele agendamentos por REST, e receba webhooks em tempo real, para clínicas integrarem o ByDoctor aos próprios sistemas."
+description: "Leia, crie, altere e cancele agendamentos, cadastre pacientes por REST e receba webhooks em tempo real, para clínicas integrarem o ByDoctor aos próprios sistemas."
 ---
 
-A API pública do ByDoctor dá às clínicas e aos fornecedores de software que as atendem acesso programático aos agendamentos da clínica — para sincronizar dados com um sistema próprio, alimentar um BI interno, reagir a mudanças de agenda em tempo real ou marcar consultas a partir de outro sistema.
+A API pública do ByDoctor dá às clínicas e aos fornecedores de software que as atendem acesso programático aos agendamentos e ao cadastro de pacientes da clínica — para sincronizar dados com um sistema próprio, alimentar um BI interno, reagir a mudanças de agenda em tempo real ou marcar consultas a partir de outro sistema.
 
-A leitura é o padrão: toda chave nasce com o escopo `appointments:read`. A escrita — criar, alterar e cancelar agendamentos presenciais — é um escopo opcional, `appointments:write`, que você concede por chave. Webhooks avisam de toda mudança, venha ela do aplicativo, do paciente ou da API.
+Cada chave é **Somente leitura** (ler agendamentos e pacientes) ou **Acesso total** (também cadastrar pacientes e criar, alterar e cancelar agendamentos presenciais), escolhido na criação. Webhooks avisam de toda mudança de agendamento, venha ela do aplicativo, do paciente ou da API.
 
 <CardGroup cols={2}>
   <Card title="Primeiros passos" icon="rocket" href="/primeiros-passos">
@@ -17,6 +17,9 @@ A leitura é o padrão: toda chave nasce com o escopo `appointments:read`. A esc
   <Card title="Agendamentos" icon="calendar" href="/agendamentos">
     Listar, criar, alterar e cancelar; filtros e paginação por cursor.
   </Card>
+  <Card title="Pacientes" icon="user" href="/pacientes">
+    Encontrar pelo CPF ou telefone, cadastrar e alterar pacientes para agendar.
+  </Card>
   <Card title="Webhooks" icon="webhook" href="/webhooks">
     O envelope de evento, os três tipos de evento e a política de reentrega.
   </Card>
@@ -27,7 +30,7 @@ A leitura é o padrão: toda chave nasce com o escopo `appointments:read`. A esc
 
   - Base URL: `https://api.bydoctor.com.br/api/public/v1`
   - Autenticação: `Authorization: Bearer bd_live_<id>.<secret>`
-  - Escopos: `appointments:read` (padrão) e `appointments:write` (opcional, por chave)
+  - Escopos: `appointments:read`, `patients:read`, `appointments:write` e `patients:write`, por chave
   - Formato: JSON, UTF-8, horários em `America/Sao_Paulo` (`-03:00`)
   - Limites: 60 requisições/min e 10.000 requisições/dia por chave
   - Eventos de webhook: `appointment.created`, `appointment.updated`, `appointment.cancelled`
@@ -36,8 +39,9 @@ A leitura é o padrão: toda chave nasce com o escopo `appointments:read`. A esc
 ## Como a API se encaixa
 
 - **Agendamentos** (`/agendamentos`): consulte a agenda da clínica por período, status, profissional, paciente, sala ou modalidade, com paginação por cursor; crie, altere e cancele agendamentos presenciais com o escopo de escrita.
+- **Pacientes** (`/pacientes`): encontre o paciente pelo CPF ou telefone e cadastre-o se não existir, para usar o `id` na criação de agendamentos. CPF, e-mail e data de nascimento são gravados, mas nunca devolvidos.
 - **Sincronização** (`/sincronizacao`): a receita recomendada para manter uma cópia local da agenda em dia, combinando `updated_since` com webhooks.
 - **Webhooks** (`/webhooks`): receba `appointment.created`, `appointment.updated` e `appointment.cancelled` assim que acontecem, com entrega pelo menos uma vez (at-least-once) e reentrega automática.
 - **Verificação de assinatura** (`/verificacao-de-assinatura`): valide a origem de cada evento recebido usando o padrão [Standard Webhooks](https://www.standardwebhooks.com).
 
-As chaves de API são criadas dentro do próprio ByDoctor, em **Minha Clínica → API e Webhooks**, e concedem acesso a dados de agendamento de pacientes — trate-as como um segredo de produção.
+As chaves de API são criadas dentro do próprio ByDoctor, em **Minha Clínica → API e Webhooks**, e concedem acesso a dados de pacientes e de agendamentos — trate-as como um segredo de produção.
