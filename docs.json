@@ -13,7 +13,7 @@
     "pages": [
       {
         "group": "Introdução",
-        "pages": ["index", "primeiros-passos", "autenticacao"]
+        "pages": ["index", "primeiros-passos", "autenticacao", "erros"]
       },
       {
         "group": "Agendamentos",
@@ -51,6 +51,7 @@
       "O objeto paciente tem apenas `id`, `name`, `phone`, `active`, `created_at` e `updated_at`. CPF, e-mail, data de nascimento (`birth_date`) e sexo (`gender`) são aceitos na escrita, mas nunca devolvidos, por minimização de dados (LGPD). Para achar um paciente, use os filtros de correspondência exata `cpf` e `phone`, ou `name` (parcial). Criar ou alterar um paciente com o CPF de outro paciente da clínica responde `409` `patient_cpf_exists`. Não existem eventos de webhook de pacientes.",
       "Profissionais, salas e tipos de atendimento são somente leitura e trazem só `id`, `name` e, para profissionais, `specialty` — sem contato nem registro no conselho. Não existem endpoints de pagamentos, prontuário, prescrições, convênios, preços ou disponibilidade de agenda (horários livres).",
       "Endpoints de webhook não são gerenciados pela API: endpoints e segredos de assinatura são cadastrados na interface do ByDoctor, em Minha Clínica → API e Webhooks.",
+      "Erros: `400` vem como `{\"campo\": [\"mensagem\"]}`; `401`/`403`/`404` como `{\"detail\": ...}`; `409` e `422` como `{\"code\", \"detail\"}`. Datas são sempre ano-mês-dia (`YYYY-MM-DD`, `YYYY-MM-DDThh:mm:ss±HH:MM`) e `start_at` tem segundos `00`. As mensagens exatas estão na página Erros.",
       "Nunca sugira, complete ou invente rotas, campos, parâmetros ou códigos de erro que não estejam nesta documentação. Se algo não está documentado aqui, não existe na v1.",
       "Autenticação: cabeçalho `Authorization: Bearer bd_live_<id>.<secret>`. Base URL: `https://api.bydoctor.com.br/api/public/v1`. Criação aceita o cabeçalho opcional `Idempotency-Key`.",
       "Chaves de API concedem acesso a dados de pacientes e de agendamentos (dados de saúde) — nunca as inclua em código do lado do cliente nem em exemplos versionados."

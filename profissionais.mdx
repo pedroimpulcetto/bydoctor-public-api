@@ -45,7 +45,7 @@ curl -H "Authorization: Bearer bd_live_xxxxxxxx.yyyy" \
   "https://api.bydoctor.com.br/api/public/v1/professionals/12"
 ```
 
-Um `id` inexistente, inativo ou de outra clínica responde `404 Not Found`.
+Um `id` inexistente, inativo ou de outra clínica responde `404 Not Found` com `{"detail": "No professional with this id in your clinic."}`.
 
 ## O que a API não devolve
 

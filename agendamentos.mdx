@@ -123,7 +123,7 @@ curl -X POST \
 | `patient_id` | `integer` | sim | `patient.id` de um paciente **ativo** da clínica. Encontre ou cadastre o paciente em [Pacientes](/pacientes). |
 | `professional_id` | `integer` | sim | `id` de um profissional ativo da clínica que atende pacientes, listado em [`GET /professionals`](/profissionais). |
 | `appointment_type_id` | `integer` | sim | `id` de um tipo de atendimento ativo da clínica, listado em [`GET /appointment-types`](/tipos-de-atendimento). |
-| `start_at` | `datetime` (ISO 8601) | sim | Início do atendimento. Sem fuso horário, é lido em `America/Sao_Paulo`. Os segundos devem ser `00`. Aceito entre 1 ano no passado e 2 anos no futuro. |
+| `start_at` | `datetime` (ISO 8601) | sim | Início do atendimento, em ordem ano-mês-dia (`2026-10-03T14:00:00-03:00`). Sem fuso horário, é lido em `America/Sao_Paulo`. Os segundos devem ser `00`. Aceito entre 1 ano no passado e 2 anos no futuro; a mensagem de erro traz as datas-limite. |
 | `room_id` | `integer` | não | `id` de uma sala ativa, listada em [`GET /rooms`](/salas). Omitido, a API usa a sala padrão da grade do profissional, se houver. |
 | `note` | `string` | não | Observação interna, até 2.000 caracteres. |
 
@@ -136,7 +136,7 @@ Responde `201 Created` com o objeto do agendamento. O agendamento nasce:
 Os ids de paciente, profissional, tipo e sala só resolvem dentro da clínica da chave. Um id de outra clínica, inativo ou inexistente recebe **a mesma** resposta `400`, no formato de erro por campo:
 
 ```json
-{ "patient_id": ["No active patient with this id in your clinic."] }
+{ "patient_id": ["No active patient with this id in your clinic. Find or create one with GET /patients and POST /patients."] }
 ```
 
 A clínica pode ter bloqueios de agenda por profissional (folgas, férias). Um `start_at` dentro de um bloqueio responde `409` com `code: "slot_blocked"`. Marcar dois pacientes no mesmo horário com o mesmo profissional é permitido, como no aplicativo.
@@ -202,12 +202,14 @@ Uma escrita pela API dispara os mesmos eventos de uma edição feita no aplicati
 
 ## Erros
 
+As mensagens exatas de cada validação e as regras de formato estão em [Erros](/erros).
+
 | Código | Quando acontece |
 |---|---|
 | `400 Bad Request` | Filtro ou corpo inválido. Nas escritas, o corpo traz o erro por campo: `{"campo": ["mensagem"]}`. Inclui `appointment_type_id` ausente e id de paciente, profissional, tipo ou sala inexistente na sua clínica, `start_at` fora das regras, `status` fora de `scheduled`/`confirmed` e corpo vazio no `PATCH`. |
 | `401 Unauthorized` | Chave ausente, revogada ou expirada. |
-| `403 Forbidden` | Chave válida, mas sem o escopo exigido pela rota (`appointments:read` para leitura, `appointments:write` para escrita). |
-| `404 Not Found` | `id` inexistente ou de outra clínica, em qualquer rota de detalhe. |
+| `403 Forbidden` | Chave válida, mas sem o escopo exigido pela rota (`appointments:read` para leitura, `appointments:write` para escrita). A mensagem nomeia o escopo que falta. |
+| `404 Not Found` | `id` inexistente ou de outra clínica, em qualquer rota de detalhe: `{"detail": "No appointment with this id in your clinic."}`. |
 | `409 Conflict` | A escrita foi recusada por uma regra de negócio. O corpo traz `code` e `detail` (veja abaixo). |
 | `422 Unprocessable Entity` | `Idempotency-Key` reutilizada com um corpo diferente ou em outro endpoint (`code: "idempotency_key_reused"`). |
 | `429 Too Many Requests` | Limite de requisições excedido — veja [Autenticação](/autenticacao) para os limites e o cabeçalho `Retry-After`. Leituras e escritas compartilham o mesmo limite. |
