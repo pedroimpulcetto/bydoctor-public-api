@@ -176,6 +176,11 @@
       "PatchedPublicAppointmentUpdate": {
         "description": "Corpo para alterar um agendamento. Envie apenas os campos que mudam.",
         "properties": {
+          "allow_overlap": {
+            "default": false,
+            "description": "`true` encaixa o agendamento mesmo que o profissional já tenha outro no mesmo intervalo. Sem ele, um horário ocupado responde `409` com `code` `appointment_overlap`.",
+            "type": "boolean"
+          },
           "note": {
             "description": "Observação interna do agendamento, até 2000 caracteres.",
             "maxLength": 2000,
@@ -387,10 +392,15 @@
         "type": "object"
       },
       "PublicAppointmentCreate": {
-        "description": "Corpo para criar um agendamento. O agendamento nasce presencial, com\n`status: \"scheduled\"` e `origin: \"api\"`, no tipo informado e com o pagador\nParticular do profissional; o valor vem da tabela de preços da clínica.",
+        "description": "Corpo para criar um agendamento. O agendamento nasce presencial, com\n`status: \"scheduled\"` e `origin: \"api\"`, no tipo informado — que o\nprofissional precisa atender — e com o pagador Particular da clínica; o\nvalor e a duração vêm da tabela de preços e atendimentos da clínica.",
         "properties": {
+          "allow_overlap": {
+            "default": false,
+            "description": "`true` encaixa o agendamento mesmo que o profissional já tenha outro no mesmo intervalo. Sem ele, um horário ocupado responde `409` com `code` `appointment_overlap`.",
+            "type": "boolean"
+          },
           "appointment_type_id": {
-            "description": "`id` de um tipo de atendimento ativo da clínica (`GET /appointment-types`).",
+            "description": "`id` de um tipo de atendimento ativo que o profissional atende (`GET /appointment-types?professional_id=`).",
             "type": "integer"
           },
           "note": {
@@ -619,7 +629,7 @@
   "paths": {
     "/api/public/v1/appointment-types": {
       "get": {
-        "description": "Retorna os tipos de atendimento ativos da clínica (como \"Consulta\" e \"Retorno\"): os `id` aceitos como `appointment_type_id` em `POST /appointments`. Requer o escopo `appointments:read`.",
+        "description": "Retorna os tipos de atendimento ativos da clínica (como \"Consulta\" e \"Retorno\"). Com `professional_id`, só os que aquele profissional atende: exatamente os `id` aceitos como `appointment_type_id` em `POST /appointments` para ele. Requer o escopo `appointments:read`.",
         "operationId": "appointment_types_list",
         "parameters": [
           {
@@ -636,6 +646,13 @@
             "in": "query",
             "name": "page_size",
             "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "professional_id",
             "schema": {
               "type": "integer"
             }
@@ -823,7 +840,7 @@
         ]
       },
       "post": {
-        "description": "Cria um agendamento presencial com `status: \"scheduled\"` e `origin: \"api\"`, no tipo de atendimento informado em `appointment_type_id` (veja `GET /appointment-types`) e com o pagador Particular do profissional; o valor vem da tabela de preços da clínica. Requer o escopo `appointments:write`. Envie `Idempotency-Key` para poder repetir a chamada com segurança. Responde `409` com `code` `slot_blocked` (horário bloqueado na agenda do profissional) ou `room_required` (a clínica exige sala e a grade do profissional não tem sala padrão para o horário). O corpo da resposta é o mesmo objeto de `GET`.",
+        "description": "Cria um agendamento presencial com `status: \"scheduled\"` e `origin: \"api\"`, no tipo de atendimento informado em `appointment_type_id` — um que o profissional atende (veja `GET /appointment-types?professional_id=`) — e com o pagador Particular da clínica; o valor e a duração vêm da tabela de preços e atendimentos. Requer o escopo `appointments:write`. Envie `Idempotency-Key` para poder repetir a chamada com segurança. Responde `409` com `code` `slot_blocked` (bloqueio de agenda em qualquer parte do intervalo), `appointment_overlap` (o profissional já tem atendimento no intervalo; `overlaps` lista os horários — repita com `allow_overlap: true` para encaixar) ou `room_required` (a clínica exige sala e a grade do profissional não tem sala padrão para o horário). O corpo da resposta é o mesmo objeto de `GET`.",
         "operationId": "appointments_create",
         "parameters": [
           {
@@ -916,7 +933,7 @@
         ]
       },
       "patch": {
-        "description": "Altera apenas os campos enviados. Só agendamentos presenciais com `status` `scheduled` ou `confirmed` podem ser alterados; a partir de `confirmed`, apenas `status` pode mudar. Requer o escopo `appointments:write`. Responde `409` com `code` `appointment_status_locked`, `appointment_finalized` (prontuário já preenchido), `appointment_cancelled`, `appointment_requested` (solicitação de paciente, resolvida no aplicativo), `modality_unsupported` (teleconsulta), `slot_blocked`, `room_required` ou `appointment_historic_conflict` (troca de profissional com prontuário já preenchido).",
+        "description": "Altera apenas os campos enviados. Só agendamentos presenciais com `status` `scheduled` ou `confirmed` podem ser alterados; a partir de `confirmed`, apenas `status` pode mudar. Requer o escopo `appointments:write`. Responde `409` com `code` `appointment_status_locked`, `appointment_finalized` (prontuário já preenchido), `appointment_cancelled`, `appointment_requested` (solicitação de paciente, resolvida no aplicativo), `modality_unsupported` (teleconsulta), `slot_blocked`, `appointment_overlap` (repita com `allow_overlap: true` para encaixar), `room_required`, `appointment_historic_conflict` (troca de profissional com prontuário já preenchido), `type_not_offered` (o novo profissional não atende o tipo deste agendamento) ou `healthplan_conflict` (o novo profissional não atende o convênio deste agendamento: faça pelo aplicativo).",
         "operationId": "appointments_partial_update",
         "parameters": [
           {

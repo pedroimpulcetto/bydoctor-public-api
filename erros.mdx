@@ -48,9 +48,10 @@ Estas regras valem para o corpo e para os filtros de todas as rotas.
 | `patient_id` | `No active patient with this id in your clinic. Find or create one with GET /patients and POST /patients.` | Veja [Pacientes](/pacientes). |
 | `professional_id` | `No active professional with this id in your clinic. List them with GET /professionals.` | Veja [Profissionais](/profissionais). |
 | `appointment_type_id` | `No active appointment type with this id in your clinic. List them with GET /appointment-types.` | Veja [Tipos de atendimento](/tipos-de-atendimento). |
+| `appointment_type_id` | `This professional does not offer this appointment type. List the types they offer with GET /appointment-types?professional_id=<professional_id>.` | Escolha um tipo da lista filtrada por `professional_id`. |
 | `room_id` | `No active room with this id in your clinic. List them with GET /rooms.` | Veja [Salas](/salas). |
 | `status` | `"X" is not a valid choice. Use one of: scheduled, confirmed.` | Só esses dois status são escritos pela API. |
-| `non_field_errors` | `Send at least one field to change.` | `PATCH` com corpo vazio. |
+| `non_field_errors` | `Send at least one field to change.` | `PATCH` com corpo vazio, ou só com `allow_overlap`. |
 
 Um id de outra clínica recebe a mesma mensagem de um id inexistente: a API nunca confirma que um id existe fora da sua clínica.
 

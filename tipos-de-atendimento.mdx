@@ -3,11 +3,11 @@ title: "Tipos de atendimento"
 description: "Listar os tipos de atendimento da clínica para obter o appointment_type_id obrigatório na criação de agendamentos."
 ---
 
-A lista traz os tipos de atendimento ativos da clínica, como "Consulta" e "Retorno": são os `id` aceitos como `appointment_type_id`, obrigatório em [`POST /appointments`](/agendamentos#criar-um-agendamento).
+A lista traz os tipos de atendimento ativos da clínica, como "Consulta" e "Retorno". Cada profissional atende um subconjunto deles: filtre por `professional_id` para obter exatamente os `id` aceitos como `appointment_type_id` para aquele profissional em [`POST /appointments`](/agendamentos#criar-um-agendamento).
 
 | Método | Rota | Descrição |
 |---|---|---|
-| `GET` | `/appointment-types` | Lista os tipos de atendimento ativos |
+| `GET` | `/appointment-types` | Lista os tipos de atendimento ativos; `?professional_id=` só os que o profissional atende |
 | `GET` | `/appointment-types/{id}` | Detalhe de um tipo de atendimento |
 
 As duas rotas exigem o escopo `appointments:read`, que toda chave já tem. Não há escrita: tipos de atendimento são cadastrados no aplicativo.
@@ -32,6 +32,15 @@ curl -H "Authorization: Bearer bd_live_xxxxxxxx.yyyy" \
 
 A resposta tem o mesmo formato paginado das outras listas (`next`, `previous`, `results`), em ordem de `id`.
 
+| Filtro | Tipo | Descrição |
+|---|---|---|
+| `professional_id` | `integer` | Só os tipos que esse profissional atende ("Consulta" sempre entra). Um `id` que não é de um profissional ativo da sua clínica devolve a lista vazia. |
+
+```bash
+curl -H "Authorization: Bearer bd_live_xxxxxxxx.yyyy" \
+  "https://api.bydoctor.com.br/api/public/v1/appointment-types?professional_id=12"
+```
+
 | Campo | Tipo | Descrição |
 |---|---|---|
 | `id` | `integer` | Use como `appointment_type_id`. É o mesmo `appointment_type.id` dos agendamentos. |
@@ -48,4 +57,4 @@ Um `id` inexistente, inativo ou de outra clínica responde `404 Not Found` com `
 
 ## Tipo e valor do agendamento
 
-O valor do agendamento vem da tabela de preços da clínica para o profissional, o tipo e o pagador Particular, como no aplicativo. O tipo é definido na criação e não muda pela API. O agendamento devolve o tipo no campo `appointment_type`.
+O valor e a duração do agendamento vêm da tabela de preços e atendimentos da clínica para o profissional, o tipo e o pagador Particular, como no aplicativo; `end_at` reflete essa duração. O tipo é definido na criação e não muda pela API. O agendamento devolve o tipo no campo `appointment_type`.
