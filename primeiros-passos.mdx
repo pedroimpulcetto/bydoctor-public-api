@@ -7,7 +7,7 @@ Este guia leva você do zero até receber o primeiro evento de webhook.
 
 <Steps>
   <Step title="Crie uma chave de API">
-    No ByDoctor, acesse **Minha Clínica → API e Webhooks** e crie uma nova chave. Escolha **Somente leitura** para consultar agendamentos e pacientes, ou **Acesso total** se a integração também vai cadastrar pacientes e criar, alterar ou cancelar agendamentos — o acesso não pode ser alterado depois. Veja [Escopos](/autenticacao#escopos).
+    No ByDoctor, acesse **Automação → API e Webhooks** e crie uma nova chave. Escolha **Somente leitura** para consultar agendamentos, horários livres e pacientes, ou **Acesso total** se a integração também vai cadastrar pacientes, criar, alterar ou cancelar agendamentos e bloquear horários da agenda. A permissão de enviar mensagem de WhatsApp ao paciente é marcada à parte. O acesso não pode ser alterado depois: para mudar, crie uma chave nova. Veja [Escopos](/autenticacao#escopos).
 
     A chave completa é exibida **uma única vez**, no formato `bd_live_<id>.<secret>`. Copie e guarde em um cofre de segredos imediatamente — o ByDoctor armazena apenas o hash e não consegue mostrá-la novamente. Se perdê-la, revogue e crie uma nova.
   </Step>
@@ -24,21 +24,29 @@ Este guia leva você do zero até receber o primeiro evento de webhook.
   </Step>
 
   <Step title="Registre um endpoint de webhook">
-    Ainda em **Minha Clínica → API e Webhooks**, cadastre a URL pública HTTPS que vai receber os eventos e escolha os eventos de interesse (`appointment.created`, `appointment.updated`, `appointment.cancelled`).
+    Ainda em **Automação → API e Webhooks**, cadastre a URL pública HTTPS que vai receber os eventos e escolha os eventos de interesse: os de agendamentos (`appointment.created`, `appointment.updated`, `appointment.cancelled`), os de pacientes e os de bloqueios de agenda. A lista completa está em [Webhooks](/webhooks#tipos-de-evento).
 
     O segredo de assinatura é exibido uma única vez, no formato `whsec_...`. Guarde-o do mesmo jeito que a chave de API — ele é necessário para [verificar a assinatura](/verificacao-de-assinatura) de cada evento recebido.
   </Step>
 
   <Step title="Receba o primeiro evento">
-    Use o botão de teste na tela do endpoint para disparar um evento `ping` e confirmar que seu servidor responde `2xx`. A partir daí, qualquer mudança em um agendamento da clínica gera um evento real — veja [Webhooks](/webhooks) para o envelope completo e a política de reentrega.
+    Use o botão de teste na tela do endpoint para disparar um evento `ping` e confirmar que seu servidor responde `2xx`. A partir daí, qualquer mudança em um registro dos eventos escolhidos gera um evento real — veja [Webhooks](/webhooks) para o envelope completo e a política de reentrega.
   </Step>
 </Steps>
 
 ## Próximos passos
 
+Vai conectar um agente de IA que agenda? Siga a receita [consultar horários e agendar](/disponibilidade#receita-consultar-horários-e-agendar).
+
 <CardGroup cols={2}>
   <Card title="Autenticação" icon="key" href="/autenticacao">
     Formato da chave, escopos e limites de uso.
+  </Card>
+  <Card title="Disponibilidade" icon="clock" href="/disponibilidade">
+    Os horários livres de um profissional, prontos para agendar.
+  </Card>
+  <Card title="Bloqueios de agenda" icon="ban" href="/bloqueios-de-agenda">
+    Folgas e intervalos sem atendimento.
   </Card>
   <Card title="Sincronização" icon="rotate" href="/sincronizacao">
     Como manter uma cópia local da agenda em dia.

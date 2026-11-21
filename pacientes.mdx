@@ -35,7 +35,7 @@ O `id` do paciente é numérico. É o mesmo `patient.id` que aparece nos agendam
 | `name` | `string` | Nome completo. |
 | `phone` | `string` ou `null` | Telefone cadastrado. Pacientes criados pela API ficam no formato E.164 (`+5511999998888`); cadastros antigos da clínica podem estar em outro formato, como em `patient.phone` dos agendamentos. |
 | `active` | `boolean` | `false` quando a clínica inativou o paciente. Paciente inativo não pode receber agendamento pela API. |
-| `created_at`, `updated_at` | `datetime` | Horários em `America/Sao_Paulo`. |
+| `created_at`, `updated_at` | `datetime` | Horários no fuso horário da clínica (padrão `America/Sao_Paulo`). |
 
 ### O que a API não devolve
 
@@ -147,7 +147,17 @@ Responde `200 OK` com o objeto atualizado.
 
 ## Webhooks
 
-Não há eventos de webhook de pacientes. Para acompanhar mudanças, use `updated_since`.
+Dois eventos acompanham o cadastro de pacientes, venha a mudança da API ou do aplicativo: `patient.created` e `patient.updated`. O campo `data` do evento é o objeto paciente desta página, sem CPF, e-mail, data de nascimento nem sexo.
+
+- `patient.updated` pode chegar sem que nenhum campo de `data` tenha mudado, quando a mudança foi em um campo que a API não devolve.
+- Um paciente inativado pela clínica chega como `patient.updated` com `active: false`.
+- Endpoints já cadastrados não são inscritos nesses eventos: marque-os no endpoint, em **Automação → API e Webhooks**.
+
+Veja [Webhooks](/webhooks#eventos-de-pacientes). Como rede de segurança, mantenha a [sincronização](/sincronizacao) com `updated_since`.
+
+## Quem fez a alteração
+
+Toda criação ou alteração pela API fica registrada no histórico do paciente com a chave de API que a fez, e não com um usuário da clínica.
 
 ## Erros
 
@@ -161,4 +171,4 @@ As mensagens exatas de cada validação estão em [Erros](/erros#pacientes).
 | `404 Not Found` | `id` inexistente ou de outra clínica: `{"detail": "No patient with this id in your clinic."}`. |
 | `409 Conflict` | `code: "patient_cpf_exists"`: outro paciente da clínica já tem este CPF. |
 | `422 Unprocessable Entity` | `Idempotency-Key` reutilizada com outro corpo ou em outro endpoint (`code: "idempotency_key_reused"`). |
-| `429 Too Many Requests` | Limite de requisições excedido. Pacientes e agendamentos compartilham o mesmo limite da chave. |
+| `429 Too Many Requests` | Limite de requisições excedido. Todas as rotas compartilham os limites da chave, e as escritas contam também em um limite próprio. Veja [Autenticação](/autenticacao#limites-de-uso-rate-limits). |

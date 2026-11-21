@@ -1,9 +1,9 @@
 ---
 title: "Webhooks"
-description: "O envelope de evento, os três tipos de evento, entrega pelo menos uma vez e a política de reentrega."
+description: "O envelope de evento, os oito tipos de evento de agendamentos, pacientes e bloqueios de agenda, entrega pelo menos uma vez e a política de reentrega."
 ---
 
-Webhooks notificam seu sistema em tempo real quando um agendamento muda, sem que você precise fazer polling constante. Registre um endpoint HTTPS público em **Minha Clínica → API e Webhooks** e escolha os eventos de interesse.
+Webhooks notificam seu sistema em tempo real quando um agendamento, um paciente ou um bloqueio de agenda muda, sem que você precise fazer polling constante. Registre um endpoint HTTPS público em **Automação → API e Webhooks** e escolha os eventos de interesse.
 
 <Note>
   A URL do endpoint precisa ser HTTPS pública. `http://`, `localhost` e endereços de rede privada são rejeitados no momento em que você salva o endpoint (e checados de novo a cada entrega) — não é possível registrar um endpoint apontando para a sua máquina local ou para uma rede interna.
@@ -20,18 +20,18 @@ Todo evento chega no corpo da requisição `POST` nesse formato:
   "created_at": "2026-08-02T10:31:00-03:00",
   "api_version": "v1",
   "company_id": 42,
-  "data": { "...": "mesmo formato do GET /appointments/{id}" }
+  "data": { "...": "o mesmo objeto que a API devolve para o recurso" }
 }
 ```
 
 | Campo | Descrição |
 |---|---|
 | `id` | Identificador do evento, no formato `evt_<uuid>`. **Estável entre reentregas** — a mesma tentativa de evento sempre chega com o mesmo `id`. |
-| `type` | Um dos três tipos de evento abaixo. |
+| `type` | Um dos oito tipos de evento abaixo. |
 | `created_at` | Instante em que o evento foi gerado (ISO 8601, `America/Sao_Paulo`). |
 | `api_version` | Versão do contrato público — hoje sempre `"v1"`. |
-| `company_id` | Identificador da clínica dona do agendamento. |
-| `data` | O agendamento completo, no mesmo formato do `GET /appointments/{id}` — veja [Agendamentos](/agendamentos). |
+| `company_id` | Identificador da clínica dona do registro. |
+| `data` | O registro completo, no mesmo formato que a API devolve para o recurso: o agendamento de [`GET /appointments/{id}`](/agendamentos), o paciente de [`GET /patients/{id}`](/pacientes#o-objeto-paciente) ou o bloqueio de [`GET /calendar-blocks/{id}`](/bloqueios-de-agenda#o-objeto-bloqueio). |
 
 ## Tipos de evento
 
@@ -40,10 +40,32 @@ Todo evento chega no corpo da requisição `POST` nesse formato:
 | `appointment.created` | Um novo agendamento é criado — pela equipe, via agendamento online do paciente ou pela própria API (`origin: "api"`). |
 | `appointment.updated` | Um agendamento existente muda — horário, status, profissional, sala, modalidade etc. |
 | `appointment.cancelled` | Um agendamento é cancelado. |
+| `patient.created` | Um paciente é cadastrado na clínica. |
+| `patient.updated` | O cadastro de um paciente muda, inclusive quando a clínica o inativa ou reativa. |
+| `calendar_block.created` | Um bloqueio de agenda é criado. Uma série recorrente criada no aplicativo gera um evento por bloqueio. |
+| `calendar_block.updated` | Um bloqueio de agenda muda, ou é reativado no aplicativo. |
+| `calendar_block.deactivated` | Um bloqueio de agenda é desativado. |
 
-Um endpoint só recebe os eventos aos quais está inscrito.
+O prefixo de `type` diz qual objeto vem em `data`: `appointment.*` traz um agendamento, `patient.*` um paciente e `calendar_block.*` um bloqueio de agenda.
 
-Os eventos não distinguem a origem da mudança: uma escrita feita pela API com o escopo `appointments:write` gera o mesmo evento que uma edição no aplicativo — inclusive para o endpoint do sistema que fez a escrita. Se o seu sistema escreve e também recebe webhooks, espere o eco das próprias escritas e trate-o de forma idempotente pelo `id` do agendamento em `data`.
+Um endpoint só recebe os eventos aos quais está inscrito. **Endpoints já cadastrados não são inscritos nos eventos de pacientes e de bloqueios**: edite o endpoint em **Automação → API e Webhooks** e marque os eventos novos.
+
+Os eventos não distinguem a origem da mudança: uma escrita feita pela API gera o mesmo evento que uma edição no aplicativo — inclusive para o endpoint do sistema que fez a escrita. Se o seu sistema escreve e também recebe webhooks, espere o eco das próprias escritas e trate-o de forma idempotente pelo `id` do registro em `data`.
+
+### Eventos de pacientes
+
+`data` é o [objeto paciente](/pacientes#o-objeto-paciente): `id`, `name`, `phone`, `active`, `created_at` e `updated_at`. CPF, e-mail, data de nascimento e sexo não vêm no evento, como não vêm na API.
+
+- `patient.updated` pode chegar **sem que nenhum campo de `data` tenha mudado**. Isso acontece quando a mudança foi em um campo que a API não devolve, como o e-mail. Compare com a sua cópia antes de reagir.
+- Um paciente inativado chega como `patient.updated` com `active: false`. Não existe outro evento para isso.
+
+### Eventos de bloqueios de agenda
+
+`data` é o [objeto bloqueio](/bloqueios-de-agenda#o-objeto-bloqueio).
+
+- Desativar um bloqueio, pela API ou pelo aplicativo, chega como `calendar_block.deactivated`, com `active: false`.
+- Reativar um bloqueio no aplicativo chega como `calendar_block.updated`, com `active: true`. Não existe um evento próprio de reativação.
+- Desativar pela API um bloqueio já desativado não gera evento.
 
 ## Entrega pelo menos uma vez (at-least-once)
 
@@ -63,11 +85,11 @@ Se seu endpoint não responder `2xx`, o ByDoctor tenta novamente seguindo esta e
 
 `1 min → 5 min → 30 min → 2 h → 6 h`
 
-Cada "falha" nessa contagem é uma entrega que já esgotou as 6 tentativas da escala acima (cerca de 8h36 de tentativas) — não uma única resposta ruim. Após **20 falhas consecutivas** (ou seja, ~20 entregas seguidas totalmente esgotadas — uma indisponibilidade sustentada do seu receptor, não um erro pontual), o endpoint é **desativado automaticamente** e os administradores da clínica são notificados por e-mail. Um endpoint desativado não recebe novos eventos até ser reativado manualmente em **Minha Clínica → API e Webhooks**.
+Cada "falha" nessa contagem é uma entrega que já esgotou as 6 tentativas da escala acima (cerca de 8h36 de tentativas) — não uma única resposta ruim. Após **20 falhas consecutivas** (ou seja, ~20 entregas seguidas totalmente esgotadas — uma indisponibilidade sustentada do seu receptor, não um erro pontual), o endpoint é **desativado automaticamente** e os administradores da clínica são notificados por e-mail. Um endpoint desativado não recebe novos eventos até ser reativado manualmente em **Automação → API e Webhooks**.
 
 ## Evento de teste (ping)
 
-Ao cadastrar ou editar um endpoint, use o botão de teste na interface do ByDoctor para disparar um evento `ping` — ele segue o mesmo envelope e a mesma assinatura de um evento real, mas com `type: "ping"` e um `data` fixo, não o formato de um agendamento:
+Ao cadastrar ou editar um endpoint, use o botão de teste na interface do ByDoctor para disparar um evento `ping` — ele segue o mesmo envelope e a mesma assinatura de um evento real, mas com `type: "ping"` e um `data` fixo, não o objeto de um recurso:
 
 ```json
 { "message": "Evento de teste do ByDoctor." }

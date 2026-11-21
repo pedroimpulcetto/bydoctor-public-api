@@ -1,6 +1,6 @@
 ---
 title: "Agendamentos"
-description: "Listar, consultar, criar, alterar e cancelar agendamentos: filtros, paginação por cursor, regras de escrita e códigos de erro."
+description: "Listar, consultar, criar, alterar e cancelar agendamentos: filtros, ordem, paginação por cursor, aviso ao paciente, regras de escrita e códigos de erro."
 ---
 
 A API expõe cinco endpoints no recurso de agendamentos:
@@ -36,8 +36,25 @@ curl -H "Authorization: Bearer bd_live_xxxxxxxx.yyyy" \
 | `room_id` | `integer` | Filtra pela sala. |
 | `modality` | `string` | `in_person` ou `telehealth`. |
 | `updated_since` | `datetime` (ISO 8601) | Retorna apenas agendamentos atualizados a partir deste instante. Veja [Sincronização](/sincronizacao). |
+| `order` | `string` | `updated_at` (padrão) ou `start_at`. Veja [Ordem da lista](#ordem-da-lista). |
 | `cursor` | `string` | Cursor de paginação — use o valor devolvido em `next`, não construa manualmente. |
 | `page_size` | `integer` | Itens por página. Padrão **50**, máximo **100**. |
+
+### Ordem da lista
+
+| `order` | Ordem | Para quê |
+|---|---|---|
+| `updated_at` (padrão) | Atualização mais antiga primeiro. | Sincronizar uma cópia local com `updated_since`. Veja [Sincronização](/sincronizacao). |
+| `start_at` | Início do atendimento, do mais antigo ao mais recente. | Ler a agenda de um dia ou de um período na ordem em que os atendimentos acontecem. |
+
+```bash
+curl -H "Authorization: Bearer bd_live_xxxxxxxx.yyyy" \
+  "https://api.bydoctor.com.br/api/public/v1/appointments?professional_id=12&start_date=2026-11-27&end_date=2026-11-27&order=start_at"
+```
+
+Para sincronizar, continue usando a ordem padrão: a receita de `updated_since` depende dela.
+
+Um cursor só vale na ordem em que foi emitido. As URLs de `next` e `previous` já trazem o `order` da consulta, então basta segui-las. Um cursor emitido numa ordem e enviado com a outra responde `404` com `{"detail": "Invalid cursor"}`. Qualquer outro valor de `order` responde `400` com `Unknown order. Use one of: updated_at, start_at.`
 
 ### Paginação por cursor
 
@@ -88,7 +105,7 @@ A paginação é por cursor, não por número de página. A resposta traz `next`
 
 `origin` indica como o agendamento foi criado: `staff` (equipe da clínica), `patient_booking` (agendamento online feito pelo paciente) ou `api` (criado por esta API).
 
-`end_at` é derivado da duração de atendimento configurada para o profissional no ByDoctor; a API não recebe duração.
+`end_at` é o início mais a duração do agendamento, definida no ByDoctor pelo tipo de atendimento e pelo profissional (Preços e atendimentos); a API não recebe duração.
 
 ## Buscar um agendamento
 
@@ -102,6 +119,10 @@ Devolve o mesmo objeto de agendamento mostrado acima. Um `id` inexistente ou de 
 ## Criar um agendamento
 
 Requer o escopo `appointments:write` — veja [Escopos](/autenticacao#escopos).
+
+<Tip>
+  Não adivinhe o horário. [`GET /availability`](/disponibilidade) lista os horários que esta rota aceita agora para o profissional e o tipo de atendimento, prontos para enviar como `start_at`.
+</Tip>
 
 ```bash
 curl -X POST \
@@ -122,16 +143,18 @@ curl -X POST \
 |---|---|---|---|
 | `patient_id` | `integer` | sim | `patient.id` de um paciente **ativo** da clínica. Encontre ou cadastre o paciente em [Pacientes](/pacientes). |
 | `professional_id` | `integer` | sim | `id` de um profissional ativo da clínica que atende pacientes, listado em [`GET /professionals`](/profissionais). |
-| `appointment_type_id` | `integer` | sim | `id` de um tipo de atendimento ativo da clínica, listado em [`GET /appointment-types`](/tipos-de-atendimento). |
-| `start_at` | `datetime` (ISO 8601) | sim | Início do atendimento, em ordem ano-mês-dia (`2026-10-03T14:00:00-03:00`). Sem fuso horário, é lido em `America/Sao_Paulo`. Os segundos devem ser `00`. Aceito entre 1 ano no passado e 2 anos no futuro; a mensagem de erro traz as datas-limite. |
-| `room_id` | `integer` | não | `id` de uma sala ativa, listada em [`GET /rooms`](/salas). Omitido, a API usa a sala padrão da grade do profissional, se houver. |
+| `appointment_type_id` | `integer` | sim | `id` de um tipo de atendimento ativo **que o profissional atende**, listado em [`GET /appointment-types?professional_id=`](/tipos-de-atendimento). Um tipo que o profissional não atende responde `400` no campo. |
+| `start_at` | `datetime` (ISO 8601) | sim | Início do atendimento, em ordem ano-mês-dia (`2026-10-03T14:00:00-03:00`). Sem fuso horário, é lido no fuso horário da clínica (padrão `America/Sao_Paulo`). Os segundos devem ser `00`. Aceito entre 1 ano no passado e 2 anos no futuro; a mensagem de erro traz as datas-limite. |
+| `room_id` | `integer` | não | `id` de uma sala ativa, listada em [`GET /rooms`](/salas). Omitido ou `null`, a API usa a sala padrão da grade do profissional, se houver. |
 | `note` | `string` | não | Observação interna, até 2.000 caracteres. |
+| `allow_overlap` | `boolean` | não | `true` encaixa o agendamento mesmo que o profissional já tenha outro no mesmo intervalo. Padrão `false`: um horário ocupado responde `409` com `code: "appointment_overlap"`. |
+| `notify_patient` | `boolean` | não | `true` envia ao paciente, por WhatsApp, a mensagem de "agendamento criado" da clínica. Exige o escopo `notifications:send`. Padrão `false`. Veja [Avisar o paciente](#avisar-o-paciente-notify_patient). |
 
 Responde `201 Created` com o objeto do agendamento. O agendamento nasce:
 
 - **presencial** (`modality: "in_person"`) — a API não cria teleconsultas;
 - com `status: "scheduled"` e `origin: "api"`;
-- no tipo informado em `appointment_type_id` e com o pagador Particular do profissional, com o valor da tabela de preços da clínica para esse profissional, tipo e pagador — convênio e valor são ajustados no aplicativo, se necessário.
+- no tipo informado em `appointment_type_id` e com o pagador Particular da clínica, com o valor e a duração da tabela de preços e atendimentos da clínica para esse profissional, tipo e pagador — convênio e valor são ajustados no aplicativo, se necessário.
 
 Os ids de paciente, profissional, tipo e sala só resolvem dentro da clínica da chave. Um id de outra clínica, inativo ou inexistente recebe **a mesma** resposta `400`, no formato de erro por campo:
 
@@ -139,7 +162,27 @@ Os ids de paciente, profissional, tipo e sala só resolvem dentro da clínica da
 { "patient_id": ["No active patient with this id in your clinic. Find or create one with GET /patients and POST /patients."] }
 ```
 
-A clínica pode ter bloqueios de agenda por profissional (folgas, férias). Um `start_at` dentro de um bloqueio responde `409` com `code: "slot_blocked"`. Marcar dois pacientes no mesmo horário com o mesmo profissional é permitido, como no aplicativo.
+A clínica pode ter bloqueios de agenda por profissional (folgas, férias). Um bloqueio que cubra qualquer parte do intervalo do agendamento (`start_at` até `start_at` mais a duração) responde `409` com `code: "slot_blocked"`. Os bloqueios estão em [Bloqueios de agenda](/bloqueios-de-agenda).
+
+O intervalo do agendamento precisa caber inteiro em uma faixa dos [horários de atendimento](/horarios-de-atendimento) do profissional para o tipo. Fora deles, a API responde `409` com `code: "outside_working_hours"` e `shifts`, as faixas daquele dia. `allow_overlap` não dispensa essa regra. Um profissional que nunca configurou horários não tem essa restrição.
+
+```json
+{
+  "code": "outside_working_hours",
+  "detail": "Outside the professional's working hours.",
+  "shifts": [{ "start_time": "08:00:00", "end_time": "12:00:00" }]
+}
+```
+
+Se o profissional já tem outro agendamento no mesmo intervalo, a API responde `409` com `code: "appointment_overlap"` e `overlaps`, a lista dos agendamentos em conflito (`appointment_id`, `start`, `end` — nunca o paciente). `appointment_id` é um número interno do ByDoctor, não o `id` (UUID) do agendamento: ele não é aceito em `/appointments/{id}` e não aparece em nenhuma outra resposta. Use `start` e `end` para explicar o conflito. Para encaixar mesmo assim, como o aplicativo faz ao confirmar um encaixe, repita a chamada com `allow_overlap: true`:
+
+```json
+{
+  "code": "appointment_overlap",
+  "detail": "The professional already has an appointment in this interval. Repeat with allow_overlap: true to book it anyway.",
+  "overlaps": [{ "appointment_id": 8123, "start": "2026-10-03T14:00:00-03:00", "end": "2026-10-03T14:30:00-03:00" }]
+}
+```
 
 Se a clínica exige sala em atendimentos presenciais e a grade do profissional não tem uma sala padrão para o horário, a API responde `409` com `code: "room_required"` — envie `room_id`.
 
@@ -148,6 +191,44 @@ Se a clínica exige sala em atendimentos presenciais e a grade do profissional n
 Envie o cabeçalho `Idempotency-Key` (até 255 caracteres, um UUID serve) para poder repetir a criação com segurança depois de um timeout ou erro de rede. Repetir a mesma requisição com a mesma chave em até **24 horas** devolve o agendamento já criado — mesmo `201`, mesmo corpo — com o cabeçalho de resposta `Idempotent-Replayed: true`, em vez de criar outro. A mesma chave com um corpo diferente, ou em outro endpoint, responde `422` com `code: "idempotency_key_reused"`.
 
 A chave é privada à sua chave de API: duas chaves de API da mesma clínica não compartilham histórico de idempotência.
+
+### Avisar o paciente (`notify_patient`)
+
+`notify_patient: true` pede ao ByDoctor que envie ao paciente, por WhatsApp, a mensagem de "agendamento criado" da clínica. É a mesma mensagem que a equipe envia ao marcar a opção de avisar o paciente no aplicativo.
+
+- A mensagem sai **uma única vez, só na criação**. Alterar ou cancelar um agendamento pela API não envia mensagem.
+- A chave precisa do escopo `notifications:send`. Sem ele, a API responde `403` com `This API key does not have the "notifications:send" scope.` e **nada é criado**.
+- Um `start_at` no passado com `notify_patient: true` responde `400` no campo `notify_patient`: `notify_patient cannot be used with a start_at in the past.`
+- Fora esses dois casos, a mensagem nunca impede a criação. Um agendamento que passa pelas regras da criação **é criado, aconteça o que acontecer com a mensagem**.
+
+A resposta `201` traz então o campo `notification`, com o resultado do pedido:
+
+```json
+{
+  "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+  "status": "scheduled",
+  "...": "os demais campos do agendamento",
+  "notification": { "status": "queued", "reason": null }
+}
+```
+
+| `status` | `reason` | Significado |
+|---|---|---|
+| `queued` | `null` | A mensagem entrou na fila de envio. |
+| `not_sent` | `patient_has_no_phone` | O cadastro do paciente não tem telefone, nem o de um responsável legal. |
+| `not_sent` | `whatsapp_quota_exceeded` | A cota de mensagens da clínica acabou. |
+| `not_sent` | `whatsapp_not_connected` | A clínica envia por um número próprio de WhatsApp e ele não está conectado. |
+| `not_sent` | `send_failed` | Uma falha interna impediu o ByDoctor de colocar a mensagem na fila. |
+
+<Warning>
+  `queued` não quer dizer entregue. O envio é assíncrono: a API responde antes de a mensagem sair. O desfecho do envio fica no registro de notificações do aplicativo, não na API.
+</Warning>
+
+Mais três regras:
+
+- **Cota.** A mensagem conta na cota de mensagens da clínica só quando a clínica envia pelo número compartilhado do ByDoctor. Clínicas com número próprio de WhatsApp não gastam essa cota.
+- **Repetição.** Repetir a criação com a mesma `Idempotency-Key` devolve o mesmo corpo, com o mesmo `notification`, e **não envia nada de novo**.
+- **Só na resposta da criação.** `notification` não aparece em `GET`, em `PATCH` nem nos webhooks. Sem `notify_patient: true`, o campo não vem.
 
 ## Alterar um agendamento
 
@@ -164,12 +245,13 @@ curl -X PATCH \
 | Campo | Tipo | Descrição |
 |---|---|---|
 | `start_at` | `datetime` | Novo início; mesmas regras da criação. |
-| `professional_id` | `integer` | Troca o profissional. Recusado com `409` `appointment_historic_conflict` se o prontuário já tem conteúdo clínico. |
+| `professional_id` | `integer` | Troca o profissional. O novo profissional precisa atender o tipo do agendamento (senão `409` `type_not_offered`) e aceitar o seu convênio (senão `409` `healthplan_conflict`); o pagador e o valor do agendamento não mudam. Recusado com `409` `appointment_historic_conflict` se o prontuário já tem conteúdo clínico. |
 | `room_id` | `integer` ou `null` | Troca a sala. `null` volta para a sala padrão da grade do profissional (ou nenhuma, se a clínica não exige sala). |
 | `note` | `string` | Substitui a observação interna. |
 | `status` | `string` | `scheduled` ou `confirmed`, nas duas direções. Os demais status (`checked_in`, `completed`, `no_show`) são definidos apenas pelo aplicativo, porque disparam fluxos financeiros e clínicos. |
+| `allow_overlap` | `boolean` | `true` encaixa o agendamento no novo horário ou profissional mesmo com outro agendamento no intervalo. Sozinho não é uma alteração: responde `400`. |
 
-Responde `200 OK` com o objeto atualizado. O tipo de atendimento não muda pela API: ele define o valor, que é fixado na criação.
+Responde `200 OK` com o objeto atualizado. O tipo de atendimento não muda pela API: ele define o valor e a duração, fixados na criação. O bloqueio de agenda, o horário de atendimento e o conflito de horário (`slot_blocked`, `outside_working_hours`, `appointment_overlap`) só são verificados quando `start_at` ou `professional_id` mudam — alterar só `status` ou `note` de um encaixe continua funcionando.
 
 ### Regras de alteração
 
@@ -200,19 +282,23 @@ O agendamento cancelado continua aparecendo na listagem com `status: "cancelled"
 
 Uma escrita pela API dispara os mesmos eventos de uma edição feita no aplicativo — `appointment.created`, `appointment.updated` ou `appointment.cancelled` — para **todos** os endpoints de webhook da clínica inscritos naquele evento, inclusive o seu. Se o seu sistema também recebe webhooks, espere receber o eco da própria escrita e trate-o de forma idempotente pelo `id` do agendamento.
 
+## Quem fez a alteração
+
+Toda escrita pela API fica registrada no histórico do agendamento com a chave que a fez. No aplicativo, a clínica vê essas alterações como "Integração (API)", com o nome da chave. Dê a cada chave um nome que diga onde ela é usada.
+
 ## Erros
 
 As mensagens exatas de cada validação e as regras de formato estão em [Erros](/erros).
 
 | Código | Quando acontece |
 |---|---|
-| `400 Bad Request` | Filtro ou corpo inválido. Nas escritas, o corpo traz o erro por campo: `{"campo": ["mensagem"]}`. Inclui `appointment_type_id` ausente e id de paciente, profissional, tipo ou sala inexistente na sua clínica, `start_at` fora das regras, `status` fora de `scheduled`/`confirmed` e corpo vazio no `PATCH`. |
+| `400 Bad Request` | Filtro ou corpo inválido. Nas escritas, o corpo traz o erro por campo: `{"campo": ["mensagem"]}`. Inclui `appointment_type_id` ausente ou de um tipo que o profissional não atende, id de paciente, profissional, tipo ou sala inexistente na sua clínica, `start_at` fora das regras, `notify_patient` com `start_at` no passado, `status` fora de `scheduled`/`confirmed`, `order` desconhecido e corpo vazio no `PATCH`. |
 | `401 Unauthorized` | Chave ausente, revogada ou expirada. |
-| `403 Forbidden` | Chave válida, mas sem o escopo exigido pela rota (`appointments:read` para leitura, `appointments:write` para escrita). A mensagem nomeia o escopo que falta. |
-| `404 Not Found` | `id` inexistente ou de outra clínica, em qualquer rota de detalhe: `{"detail": "No appointment with this id in your clinic."}`. |
+| `403 Forbidden` | Chave válida, mas sem o escopo exigido: `appointments:read` para leitura, `appointments:write` para escrita e `notifications:send` para criar com `notify_patient: true`. A mensagem nomeia o escopo que falta. |
+| `404 Not Found` | `id` inexistente ou de outra clínica, em qualquer rota de detalhe: `{"detail": "No appointment with this id in your clinic."}`. Também um cursor inválido ou emitido em outra ordem: `{"detail": "Invalid cursor"}`. |
 | `409 Conflict` | A escrita foi recusada por uma regra de negócio. O corpo traz `code` e `detail` (veja abaixo). |
 | `422 Unprocessable Entity` | `Idempotency-Key` reutilizada com um corpo diferente ou em outro endpoint (`code: "idempotency_key_reused"`). |
-| `429 Too Many Requests` | Limite de requisições excedido — veja [Autenticação](/autenticacao) para os limites e o cabeçalho `Retry-After`. Leituras e escritas compartilham o mesmo limite. |
+| `429 Too Many Requests` | Limite de requisições excedido — veja [Autenticação](/autenticacao#limites-de-uso-rate-limits) para os limites e o cabeçalho `Retry-After`. Toda requisição conta no limite geral; as escritas contam também em um limite próprio, menor. |
 
 ### Códigos de `409`
 
@@ -222,14 +308,18 @@ As mensagens exatas de cada validação e as regras de formato estão em [Erros]
 
 | `code` | Significado |
 |---|---|
-| `slot_blocked` | O horário está dentro de um bloqueio de agenda do profissional. |
+| `slot_blocked` | Um bloqueio de agenda do profissional cobre parte do intervalo do agendamento. |
+| `outside_working_hours` | O intervalo sai dos horários de atendimento do profissional para o tipo. A resposta traz `shifts`, as faixas do dia (`start_time`, `end_time`); `shifts: []` quer dizer que ele não atende nesse dia. `allow_overlap` não dispensa essa regra. Consulte [`GET /availability`](/disponibilidade). |
+| `appointment_overlap` | O profissional já tem agendamento no intervalo. A resposta traz `overlaps` (`appointment_id`, um número interno que não é o `id` UUID do agendamento, `start`, `end`). Repita com `allow_overlap: true` para encaixar. |
 | `room_required` | A clínica exige sala e a grade do profissional não tem sala padrão para o horário — envie `room_id`. |
-| `appointment_status_locked` | O `status` atual não permite a alteração pedida. A resposta pode trazer `fields`, com os campos recusados. |
+| `appointment_status_locked` | O `status` atual não permite a alteração pedida. A resposta pode trazer `fields`, com os nomes dos campos recusados como você os enviou, por exemplo `["start_at"]`. |
 | `appointment_finalized` | O prontuário já foi preenchido; o agendamento está congelado. |
 | `appointment_cancelled` | O agendamento já está cancelado e não aceita alteração. |
 | `appointment_requested` | Solicitação de agendamento online de um paciente; resolva no aplicativo. |
 | `modality_unsupported` | Teleconsulta; a API não altera nem cancela teleconsultas. |
 | `appointment_historic_conflict` | A troca de profissional foi recusada porque o prontuário já tem conteúdo clínico. |
+| `type_not_offered` | A troca de profissional foi recusada porque o novo profissional não atende o tipo deste agendamento. Veja [`GET /appointment-types?professional_id=`](/tipos-de-atendimento). |
+| `healthplan_conflict` | A troca de profissional foi recusada porque o novo profissional não aceita o convênio deste agendamento. Troque pelo aplicativo, onde o convênio é escolhido de novo. |
 
 Ramifique pelo `code`, não pelo texto de `detail` — o texto pode mudar; o código não.
 

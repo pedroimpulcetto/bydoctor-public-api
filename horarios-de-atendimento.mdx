@@ -1,0 +1,103 @@
+---
+title: "Horários de atendimento"
+description: "Consultar, dia a dia, as faixas de horário em que um profissional atende, já resolvidas para cada data."
+---
+
+`GET /working-hours` devolve as faixas de horário em que um profissional atende em cada dia de uma janela. A resposta vem resolvida por data: a grade semanal e as datas extras cadastradas no aplicativo já estão aplicadas a cada dia.
+
+| Método | Rota | Escopo | Descrição |
+|---|---|---|---|
+| `GET` | `/working-hours` | `appointments:read` | Faixas de atendimento de um profissional, dia a dia |
+
+A rota não tem barra final e não é paginada: a resposta é um único objeto.
+
+<Note>
+  Horário de atendimento não é horário livre. Esta rota não desconta bloqueios de agenda nem agendamentos já marcados. Para saber onde cabe um agendamento, use [`GET /availability`](/disponibilidade).
+</Note>
+
+## Consultar horários de atendimento
+
+```bash
+curl -H "Authorization: Bearer bd_live_xxxxxxxx.yyyy" \
+  "https://api.bydoctor.com.br/api/public/v1/working-hours?professional_id=12&start_date=2026-11-23&end_date=2026-11-24"
+```
+
+| Parâmetro | Tipo | Obrigatório | Descrição |
+|---|---|---|---|
+| `professional_id` | `integer` | sim | `id` de um profissional ativo da clínica, listado em [`GET /professionals`](/profissionais). |
+| `start_date` | `date` | sim | Primeiro dia da janela, `YYYY-MM-DD`. |
+| `end_date` | `date` | não | Último dia da janela (inclusive). Omitido, vale `start_date`. A janela tem no máximo **62 dias**. |
+| `appointment_type_id` | `integer` | não | `id` de um tipo de atendimento que o profissional atende. Com ele, os horários valem para esse tipo. Sem ele, a resposta traz o horário mais amplo que qualquer tipo poderia usar. |
+
+```json
+{
+  "professional_id": 12,
+  "working_hours_configured": true,
+  "days": [
+    { "date": "2026-11-23", "shifts": [{ "start_time": "08:00:00", "end_time": "12:00:00" }] },
+    { "date": "2026-11-24", "shifts": [] }
+  ]
+}
+```
+
+| Campo | Tipo | Descrição |
+|---|---|---|
+| `professional_id` | `integer` | O profissional consultado. |
+| `working_hours_configured` | `boolean` | `false` quando o profissional nunca configurou horários de atendimento. |
+| `days` | `array` | Um item por dia da janela, em ordem. |
+| `days[].date` | `date` | O dia. |
+| `days[].shifts` | `array` | Faixas de atendimento do dia, em ordem. Lista vazia: o profissional não atende nesse dia. |
+| `days[].shifts[].start_time` | `time` | Início da faixa, `HH:MM:SS`, no horário local da clínica. |
+| `days[].shifts[].end_time` | `time` | Fim da faixa, `HH:MM:SS`, no horário local da clínica. |
+
+## Com e sem tipo de atendimento
+
+A clínica pode dar a um tipo de atendimento uma grade própria, diferente da grade padrão do profissional. Por isso a resposta depende de `appointment_type_id`:
+
+- **Com `appointment_type_id`**, as faixas são as daquele tipo. São as mesmas que [`POST /appointments`](/agendamentos#criar-um-agendamento) usa para aceitar ou recusar um horário desse tipo.
+- **Sem `appointment_type_id`**, as faixas são as mais amplas que qualquer tipo poderia usar. Serve para desenhar a agenda do profissional. Um tipo específico pode ter um horário mais restrito do que o mostrado.
+
+## Dias fechados e profissional sem horários
+
+`shifts: []` tem dois significados. O campo `working_hours_configured` diz qual deles vale:
+
+| `working_hours_configured` | `shifts: []` quer dizer |
+|---|---|
+| `true` | O profissional não atende nesse dia. |
+| `false` | O profissional nunca configurou horários. Todos os dias vêm vazios e nada restringe a agenda dele. |
+
+Para um profissional sem horários configurados, `POST /appointments` não recusa nenhum horário com `outside_working_hours`. Os bloqueios de agenda e os conflitos com outros agendamentos continuam valendo.
+
+## O mesmo formato do erro `outside_working_hours`
+
+Quando a criação ou a alteração de um agendamento cai fora do horário de atendimento, a API responde `409` com `code: "outside_working_hours"` e a lista `shifts` do dia pedido. O formato de `shifts` é o mesmo desta rota:
+
+```json
+{
+  "code": "outside_working_hours",
+  "detail": "Outside the professional's working hours.",
+  "shifts": [{ "start_time": "08:00:00", "end_time": "12:00:00" }]
+}
+```
+
+No erro, `shifts: []` quer dizer que o profissional não atende naquele dia.
+
+## Erros
+
+Um parâmetro inválido responde `400 Bad Request` com o erro por parâmetro: `{"start_date": ["mensagem"]}`.
+
+| Parâmetro | Mensagem | Quando |
+|---|---|---|
+| `professional_id`, `start_date` | `This field is required.` | Parâmetro obrigatório ausente. |
+| `professional_id` | `No active professional with this id in your clinic. List them with GET /professionals.` | `id` inexistente, inativo ou de outra clínica. |
+| `appointment_type_id` | `No active appointment type with this id in your clinic. List them with GET /appointment-types.` | `id` inexistente, inativo ou de outra clínica. |
+| `appointment_type_id` | `This professional does not offer this appointment type. List the types they offer with GET /appointment-types?professional_id=<professional_id>.` | O profissional não atende esse tipo. |
+| `start_date` | `start_date cannot be after end_date.` | Janela invertida. |
+| `end_date` | `The date range must span at most 62 days (start_date to end_date, inclusive).` | Janela maior que 62 dias. |
+| `start_date`, `end_date` | `Invalid date. Use YYYY-MM-DD (year-month-day), e.g. 1990-05-10.` | Data fora do formato. |
+
+| Código | Quando acontece |
+|---|---|
+| `401 Unauthorized` | Chave ausente, revogada ou expirada. |
+| `403 Forbidden` | Chave sem o escopo `appointments:read`. |
+| `429 Too Many Requests` | Limite de requisições excedido. Veja [Autenticação](/autenticacao#limites-de-uso-rate-limits). |

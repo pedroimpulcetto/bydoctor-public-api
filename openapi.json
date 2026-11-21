@@ -95,6 +95,58 @@
         ],
         "type": "object"
       },
+      "PaginatedPublicCalendarBlockList": {
+        "properties": {
+          "next": {
+            "example": "https://api.bydoctor.com.br/api/public/v1/calendar-blocks?cursor=cD00ODY%3D",
+            "format": "uri",
+            "nullable": true,
+            "type": "string"
+          },
+          "previous": {
+            "example": "https://api.bydoctor.com.br/api/public/v1/calendar-blocks?cursor=cj0xJnA9NDg3",
+            "format": "uri",
+            "nullable": true,
+            "type": "string"
+          },
+          "results": {
+            "items": {
+              "$ref": "#/components/schemas/PublicCalendarBlock"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "results"
+        ],
+        "type": "object"
+      },
+      "PaginatedPublicHealthPlanList": {
+        "properties": {
+          "next": {
+            "example": "https://api.bydoctor.com.br/api/public/v1/health-plans?cursor=cD00ODY%3D",
+            "format": "uri",
+            "nullable": true,
+            "type": "string"
+          },
+          "previous": {
+            "example": "https://api.bydoctor.com.br/api/public/v1/health-plans?cursor=cj0xJnA9NDg3",
+            "format": "uri",
+            "nullable": true,
+            "type": "string"
+          },
+          "results": {
+            "items": {
+              "$ref": "#/components/schemas/PublicHealthPlan"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "results"
+        ],
+        "type": "object"
+      },
       "PaginatedPublicPatientList": {
         "properties": {
           "next": {
@@ -176,6 +228,11 @@
       "PatchedPublicAppointmentUpdate": {
         "description": "Corpo para alterar um agendamento. Envie apenas os campos que mudam.",
         "properties": {
+          "allow_overlap": {
+            "default": false,
+            "description": "`true` encaixa o agendamento mesmo que o profissional já tenha outro no mesmo intervalo. Sem ele, um horário ocupado responde `409` com `code` `appointment_overlap`.",
+            "type": "boolean"
+          },
           "note": {
             "description": "Observação interna do agendamento, até 2000 caracteres.",
             "maxLength": 2000,
@@ -191,7 +248,7 @@
             "type": "integer"
           },
           "start_at": {
-            "description": "Novo início, ISO 8601. Sem fuso horário, é lido em America/Sao_Paulo. Os segundos devem ser `00`.",
+            "description": "Novo início, ISO 8601. Sem fuso horário, é lido no fuso da clínica (Minha Clínica → Fuso horário). Os segundos devem ser `00`.",
             "format": "date-time",
             "type": "string"
           },
@@ -202,6 +259,43 @@
               }
             ],
             "description": "`scheduled` ou `confirmed`. Os demais status são definidos apenas pelo aplicativo.\n\n* `scheduled` - scheduled\n* `confirmed` - confirmed"
+          }
+        },
+        "type": "object"
+      },
+      "PatchedPublicCalendarBlockUpdate": {
+        "description": "Corpo para alterar um bloqueio de agenda. Envie apenas os campos que mudam.",
+        "properties": {
+          "date": {
+            "description": "Dia do bloqueio, de hoje até dois anos à frente. Use YYYY-MM-DD (year-month-day), e.g. 1990-05-10.",
+            "format": "date",
+            "type": "string"
+          },
+          "end_time": {
+            "description": "Fim do intervalo, `HH:MM`, depois de `start_time`. Obrigatório em `time_range`.",
+            "format": "time",
+            "nullable": true,
+            "type": "string"
+          },
+          "reason": {
+            "description": "Motivo do bloqueio, até 500 caracteres.",
+            "maxLength": 500,
+            "nullable": true,
+            "type": "string"
+          },
+          "start_time": {
+            "description": "Início do intervalo, `HH:MM`. Obrigatório em `time_range`.",
+            "format": "time",
+            "nullable": true,
+            "type": "string"
+          },
+          "type": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PublicCalendarBlockTypeEnum"
+              }
+            ],
+            "description": "`full_day` bloqueia o dia todo; `time_range` bloqueia de `start_time` a `end_time`.\n\n* `full_day` - Full Day\n* `time_range` - Time Range"
           }
         },
         "type": "object"
@@ -387,16 +481,26 @@
         "type": "object"
       },
       "PublicAppointmentCreate": {
-        "description": "Corpo para criar um agendamento. O agendamento nasce presencial, com\n`status: \"scheduled\"` e `origin: \"api\"`, no tipo informado e com o pagador\nParticular do profissional; o valor vem da tabela de preços da clínica.",
+        "description": "Corpo para criar um agendamento. O agendamento nasce presencial, com\n`status: \"scheduled\"` e `origin: \"api\"`, no tipo informado — que o\nprofissional precisa atender — e com o pagador Particular da clínica; o\nvalor e a duração vêm da tabela de preços e atendimentos da clínica.",
         "properties": {
+          "allow_overlap": {
+            "default": false,
+            "description": "`true` encaixa o agendamento mesmo que o profissional já tenha outro no mesmo intervalo. Sem ele, um horário ocupado responde `409` com `code` `appointment_overlap`.",
+            "type": "boolean"
+          },
           "appointment_type_id": {
-            "description": "`id` de um tipo de atendimento ativo da clínica (`GET /appointment-types`).",
+            "description": "`id` de um tipo de atendimento ativo que o profissional atende (`GET /appointment-types?professional_id=`).",
             "type": "integer"
           },
           "note": {
             "description": "Observação interna do agendamento, até 2000 caracteres.",
             "maxLength": 2000,
             "type": "string"
+          },
+          "notify_patient": {
+            "default": false,
+            "description": "`true` envia ao paciente, por WhatsApp, a mensagem de \"agendamento criado\" da clínica, uma única vez, só na criação. Exige o escopo `notifications:send`. A mensagem conta na cota de mensagens da clínica só quando a clínica envia pelo número compartilhado do ByDoctor. O resultado vem em `notification`; o envio em si é assíncrono (`queued` não é `sent`).",
+            "type": "boolean"
           },
           "patient_id": {
             "description": "`patient.id` de um paciente ativo da clínica.",
@@ -412,7 +516,7 @@
             "type": "integer"
           },
           "start_at": {
-            "description": "Início do atendimento, ISO 8601. Sem fuso horário, é lido em America/Sao_Paulo. Os segundos devem ser `00`.",
+            "description": "Início do atendimento, ISO 8601. Sem fuso horário, é lido no fuso da clínica (Minha Clínica → Fuso horário). Os segundos devem ser `00`.",
             "format": "date-time",
             "type": "string"
           }
@@ -422,6 +526,105 @@
           "patient_id",
           "professional_id",
           "start_at"
+        ],
+        "type": "object"
+      },
+      "PublicAppointmentCreated": {
+        "description": "O agendamento criado. `notification` só vem na criação, e só quando `notify_patient` foi `true`.",
+        "properties": {
+          "appointment_type": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AppointmentTypeSummary"
+              }
+            ],
+            "readOnly": true
+          },
+          "created_at": {
+            "format": "date-time",
+            "readOnly": true,
+            "type": "string"
+          },
+          "end_at": {
+            "format": "date-time",
+            "readOnly": true,
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "nullable": true,
+            "readOnly": true,
+            "type": "string"
+          },
+          "modality": {
+            "$ref": "#/components/schemas/ModalityEnum"
+          },
+          "notification": {
+            "$ref": "#/components/schemas/PublicNotificationResult"
+          },
+          "origin": {
+            "$ref": "#/components/schemas/OriginEnum"
+          },
+          "patient": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PatientSummary"
+              }
+            ],
+            "nullable": true,
+            "readOnly": true
+          },
+          "professional": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ProfessionalSummary"
+              }
+            ],
+            "nullable": true,
+            "readOnly": true
+          },
+          "room": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/RoomSummary"
+              }
+            ],
+            "nullable": true,
+            "readOnly": true
+          },
+          "start_at": {
+            "format": "date-time",
+            "readOnly": true,
+            "type": "string"
+          },
+          "status": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PublicAppointmentStatusEnum"
+              }
+            ],
+            "description": "One of: requested, scheduled, confirmed, checked_in, completed, no_show, cancelled.",
+            "readOnly": true
+          },
+          "updated_at": {
+            "format": "date-time",
+            "readOnly": true,
+            "type": "string"
+          }
+        },
+        "required": [
+          "appointment_type",
+          "created_at",
+          "end_at",
+          "id",
+          "modality",
+          "origin",
+          "patient",
+          "professional",
+          "room",
+          "start_at",
+          "status",
+          "updated_at"
         ],
         "type": "object"
       },
@@ -440,16 +643,31 @@
       "PublicAppointmentType": {
         "description": "Tipo de atendimento ativo da clínica. Use o `id` como `appointment_type_id` ao criar um agendamento.",
         "properties": {
+          "duration_minutes": {
+            "description": "Duração em minutos para o profissional do filtro `professional_id`. `null` sem o filtro.",
+            "nullable": true,
+            "readOnly": true,
+            "type": "integer"
+          },
           "id": {
             "type": "integer"
           },
           "name": {
             "type": "string"
+          },
+          "price": {
+            "description": "Valor Particular do profissional do filtro `professional_id`, com duas casas decimais. `null` sem o filtro ou quando a clínica não definiu valor. Valores de convênio nunca aparecem.",
+            "example": "250.00",
+            "nullable": true,
+            "readOnly": true,
+            "type": "string"
           }
         },
         "required": [
+          "duration_minutes",
           "id",
-          "name"
+          "name",
+          "price"
         ],
         "type": "object"
       },
@@ -458,6 +676,246 @@
         "enum": [
           "scheduled",
           "confirmed"
+        ],
+        "type": "string"
+      },
+      "PublicAvailability": {
+        "description": "Horários livres do profissional para um tipo de atendimento.",
+        "properties": {
+          "appointment_type_id": {
+            "type": "integer"
+          },
+          "days": {
+            "items": {
+              "$ref": "#/components/schemas/PublicAvailabilityDay"
+            },
+            "type": "array"
+          },
+          "duration_minutes": {
+            "description": "Duração do atendimento desse tipo com esse profissional; também o intervalo entre os horários.",
+            "type": "integer"
+          },
+          "professional_id": {
+            "type": "integer"
+          },
+          "working_hours_configured": {
+            "description": "`false` quando o profissional nunca configurou horários: nenhum horário é listado, mesmo que nada o restrinja.",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "appointment_type_id",
+          "days",
+          "duration_minutes",
+          "professional_id",
+          "working_hours_configured"
+        ],
+        "type": "object"
+      },
+      "PublicAvailabilityDay": {
+        "description": "Horários livres de um dia.",
+        "properties": {
+          "date": {
+            "format": "date",
+            "type": "string"
+          },
+          "slots": {
+            "items": {
+              "format": "date-time",
+              "type": "string"
+            },
+            "readOnly": true,
+            "type": "array"
+          }
+        },
+        "required": [
+          "date",
+          "slots"
+        ],
+        "type": "object"
+      },
+      "PublicCalendarBlock": {
+        "description": "Bloqueio de agenda: um dia inteiro ou um intervalo em que o profissional não atende.",
+        "properties": {
+          "active": {
+            "description": "`false` quando o bloqueio foi desativado; a lista só traz os ativos.",
+            "type": "boolean"
+          },
+          "created_at": {
+            "format": "date-time",
+            "readOnly": true,
+            "type": "string"
+          },
+          "date": {
+            "format": "date",
+            "type": "string"
+          },
+          "end_time": {
+            "description": "`null` em bloqueios de dia inteiro.",
+            "format": "time",
+            "nullable": true,
+            "type": "string"
+          },
+          "id": {
+            "type": "integer"
+          },
+          "professional_id": {
+            "type": "integer"
+          },
+          "reason": {
+            "nullable": true,
+            "readOnly": true,
+            "type": "string"
+          },
+          "start_time": {
+            "description": "`null` em bloqueios de dia inteiro.",
+            "format": "time",
+            "nullable": true,
+            "type": "string"
+          },
+          "type": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PublicCalendarBlockTypeEnum"
+              }
+            ],
+            "description": "`full_day` bloqueia o dia todo; `time_range` bloqueia de `start_time` a `end_time`.\n\n* `full_day` - Full Day\n* `time_range` - Time Range"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "readOnly": true,
+            "type": "string"
+          }
+        },
+        "required": [
+          "active",
+          "created_at",
+          "date",
+          "end_time",
+          "id",
+          "professional_id",
+          "reason",
+          "start_time",
+          "type",
+          "updated_at"
+        ],
+        "type": "object"
+      },
+      "PublicCalendarBlockCreate": {
+        "description": "Corpo para criar um bloqueio de agenda. Para `time_range`, envie `start_time` e `end_time`.",
+        "properties": {
+          "date": {
+            "description": "Dia do bloqueio, de hoje até dois anos à frente. Use YYYY-MM-DD (year-month-day), e.g. 1990-05-10.",
+            "format": "date",
+            "type": "string"
+          },
+          "end_time": {
+            "description": "Fim do intervalo, `HH:MM`, depois de `start_time`. Obrigatório em `time_range`.",
+            "format": "time",
+            "nullable": true,
+            "type": "string"
+          },
+          "professional_id": {
+            "description": "`professional.id` de um profissional ativo da clínica que atende pacientes.",
+            "type": "integer"
+          },
+          "reason": {
+            "description": "Motivo do bloqueio, até 500 caracteres.",
+            "maxLength": 500,
+            "nullable": true,
+            "type": "string"
+          },
+          "start_time": {
+            "description": "Início do intervalo, `HH:MM`. Obrigatório em `time_range`.",
+            "format": "time",
+            "nullable": true,
+            "type": "string"
+          },
+          "type": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PublicCalendarBlockTypeEnum"
+              }
+            ],
+            "description": "`full_day` bloqueia o dia todo; `time_range` bloqueia de `start_time` a `end_time`.\n\n* `full_day` - Full Day\n* `time_range` - Time Range"
+          }
+        },
+        "required": [
+          "date",
+          "professional_id",
+          "type"
+        ],
+        "type": "object"
+      },
+      "PublicCalendarBlockTypeEnum": {
+        "description": "* `full_day` - Full Day\n* `time_range` - Time Range",
+        "enum": [
+          "full_day",
+          "time_range"
+        ],
+        "type": "string"
+      },
+      "PublicHealthPlan": {
+        "description": "Convênio ativo da clínica. Informativo: `POST /appointments` sempre agenda como Particular.",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "is_particular": {
+            "description": "`true` para o atendimento particular, sem convênio.",
+            "type": "boolean"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "is_particular",
+          "name"
+        ],
+        "type": "object"
+      },
+      "PublicNotificationReasonEnum": {
+        "enum": [
+          "patient_has_no_phone",
+          "whatsapp_quota_exceeded",
+          "whatsapp_not_connected",
+          "send_failed"
+        ],
+        "type": "string"
+      },
+      "PublicNotificationResult": {
+        "description": "Resultado do pedido `notify_patient`. `queued` quer dizer na fila: a entrega é assíncrona e o\ndesfecho fica no registro de notificações do app.",
+        "properties": {
+          "reason": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PublicNotificationReasonEnum"
+              }
+            ],
+            "description": "`null` quando `queued`. Senão: o paciente não tem telefone, a cota de mensagens acabou, o número próprio da clínica não está conectado, ou a fila falhou. O agendamento é criado sempre.",
+            "nullable": true
+          },
+          "status": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PublicNotificationStatusEnum"
+              }
+            ],
+            "description": "`queued` ou `not_sent`."
+          }
+        },
+        "required": [
+          "reason",
+          "status"
+        ],
+        "type": "object"
+      },
+      "PublicNotificationStatusEnum": {
+        "enum": [
+          "queued",
+          "not_sent"
         ],
         "type": "string"
       },
@@ -585,6 +1043,70 @@
         ],
         "type": "object"
       },
+      "PublicShift": {
+        "description": "Faixa de atendimento, no horário local da clínica.",
+        "properties": {
+          "end_time": {
+            "description": "Fim da faixa, `HH:MM:SS`.",
+            "format": "time",
+            "type": "string"
+          },
+          "start_time": {
+            "description": "Início da faixa, `HH:MM:SS`.",
+            "format": "time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "end_time",
+          "start_time"
+        ],
+        "type": "object"
+      },
+      "PublicWorkingDay": {
+        "description": "Faixas de atendimento de um dia. Lista vazia: o profissional não atende nesse dia.",
+        "properties": {
+          "date": {
+            "format": "date",
+            "type": "string"
+          },
+          "shifts": {
+            "items": {
+              "$ref": "#/components/schemas/PublicShift"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "date",
+          "shifts"
+        ],
+        "type": "object"
+      },
+      "PublicWorkingHours": {
+        "description": "Horários de atendimento do profissional, dia a dia.",
+        "properties": {
+          "days": {
+            "items": {
+              "$ref": "#/components/schemas/PublicWorkingDay"
+            },
+            "type": "array"
+          },
+          "professional_id": {
+            "type": "integer"
+          },
+          "working_hours_configured": {
+            "description": "`false` quando o profissional nunca configurou horários: então nada o restringe e todos os `shifts` vêm vazios.",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "days",
+          "professional_id",
+          "working_hours_configured"
+        ],
+        "type": "object"
+      },
       "RoomSummary": {
         "description": "Sala em que o atendimento acontece, quando a clínica usa salas.",
         "properties": {
@@ -619,7 +1141,7 @@
   "paths": {
     "/api/public/v1/appointment-types": {
       "get": {
-        "description": "Retorna os tipos de atendimento ativos da clínica (como \"Consulta\" e \"Retorno\"): os `id` aceitos como `appointment_type_id` em `POST /appointments`. Requer o escopo `appointments:read`.",
+        "description": "Retorna os tipos de atendimento ativos da clínica (como \"Consulta\" e \"Retorno\"). Com `professional_id`, só os que aquele profissional atende: exatamente os `id` aceitos como `appointment_type_id` em `POST /appointments` para ele; nesse caso cada tipo traz também `duration_minutes` e `price` (valor Particular) daquele profissional, ou `null` quando não há valor. Sem `professional_id`, os dois vêm `null`. Requer o escopo `appointments:read`.",
         "operationId": "appointment_types_list",
         "parameters": [
           {
@@ -636,6 +1158,13 @@
             "in": "query",
             "name": "page_size",
             "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "professional_id",
             "schema": {
               "type": "integer"
             }
@@ -704,7 +1233,7 @@
     },
     "/api/public/v1/appointments": {
       "get": {
-        "description": "Retorna os agendamentos da clínica em ordem crescente de atualização (`updated_at` mais antigo primeiro), com paginação por cursor — siga `next` até o fim para obter tudo. Use `updated_since` para sincronizar apenas o que mudou desde a última consulta: agendamentos cancelados continuam aparecendo com `status: \"cancelled\"` em vez de desaparecerem da lista.",
+        "description": "Retorna os agendamentos da clínica em ordem crescente de atualização (`updated_at` mais antigo primeiro), ou do início mais antigo ao mais recente com `order=start_at` (um cursor só vale na ordem em que foi emitido), com paginação por cursor — siga `next` até o fim para obter tudo. Use `updated_since` para sincronizar apenas o que mudou desde a última consulta: agendamentos cancelados continuam aparecendo com `status: \"cancelled\"` em vez de desaparecerem da lista.",
         "operationId": "appointments_list",
         "parameters": [
           {
@@ -732,6 +1261,18 @@
               "enum": [
                 "in_person",
                 "telehealth"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Ordem da lista: `updated_at` (padrão, a do roteiro de sincronização) ou `start_at` (início do atendimento, do mais antigo ao mais recente). Um cursor só vale na ordem em que foi emitido.",
+            "in": "query",
+            "name": "order",
+            "schema": {
+              "enum": [
+                "start_at",
+                "updated_at"
               ],
               "type": "string"
             }
@@ -823,7 +1364,7 @@
         ]
       },
       "post": {
-        "description": "Cria um agendamento presencial com `status: \"scheduled\"` e `origin: \"api\"`, no tipo de atendimento informado em `appointment_type_id` (veja `GET /appointment-types`) e com o pagador Particular do profissional; o valor vem da tabela de preços da clínica. Requer o escopo `appointments:write`. Envie `Idempotency-Key` para poder repetir a chamada com segurança. Responde `409` com `code` `slot_blocked` (horário bloqueado na agenda do profissional) ou `room_required` (a clínica exige sala e a grade do profissional não tem sala padrão para o horário). O corpo da resposta é o mesmo objeto de `GET`.",
+        "description": "Cria um agendamento presencial com `status: \"scheduled\"` e `origin: \"api\"`, no tipo de atendimento informado em `appointment_type_id` — um que o profissional atende (veja `GET /appointment-types?professional_id=`) — e com o pagador Particular da clínica; o valor e a duração vêm da tabela de preços e atendimentos. Requer o escopo `appointments:write`. Envie `Idempotency-Key` para poder repetir a chamada com segurança. Responde `409` com `code` `slot_blocked` (bloqueio de agenda em qualquer parte do intervalo), `outside_working_hours` (o intervalo sai dos horários de atendimento do profissional para o tipo; `shifts` lista os horários do dia e `allow_overlap` não dispensa essa regra), `appointment_overlap` (o profissional já tem atendimento no intervalo; `overlaps` lista os horários — repita com `allow_overlap: true` para encaixar) ou `room_required` (a clínica exige sala e a grade do profissional não tem sala padrão para o horário). O corpo da resposta é o mesmo objeto de `GET`.",
         "operationId": "appointments_create",
         "parameters": [
           {
@@ -860,7 +1401,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/PublicAppointment"
+                  "$ref": "#/components/schemas/PublicAppointmentCreated"
                 }
               }
             },
@@ -916,7 +1457,7 @@
         ]
       },
       "patch": {
-        "description": "Altera apenas os campos enviados. Só agendamentos presenciais com `status` `scheduled` ou `confirmed` podem ser alterados; a partir de `confirmed`, apenas `status` pode mudar. Requer o escopo `appointments:write`. Responde `409` com `code` `appointment_status_locked`, `appointment_finalized` (prontuário já preenchido), `appointment_cancelled`, `appointment_requested` (solicitação de paciente, resolvida no aplicativo), `modality_unsupported` (teleconsulta), `slot_blocked`, `room_required` ou `appointment_historic_conflict` (troca de profissional com prontuário já preenchido).",
+        "description": "Altera apenas os campos enviados. Só agendamentos presenciais com `status` `scheduled` ou `confirmed` podem ser alterados; a partir de `confirmed`, apenas `status` pode mudar. Requer o escopo `appointments:write`. Responde `409` com `code` `appointment_status_locked`, `appointment_finalized` (prontuário já preenchido), `appointment_cancelled`, `appointment_requested` (solicitação de paciente, resolvida no aplicativo), `modality_unsupported` (teleconsulta), `slot_blocked`, `outside_working_hours` (o novo horário sai dos horários de atendimento do profissional; `shifts` lista os do dia), `appointment_overlap` (repita com `allow_overlap: true` para encaixar), `room_required`, `appointment_historic_conflict` (troca de profissional com prontuário já preenchido), `type_not_offered` (o novo profissional não atende o tipo deste agendamento) ou `healthplan_conflict` (o novo profissional não atende o convênio deste agendamento: faça pelo aplicativo).",
         "operationId": "appointments_partial_update",
         "parameters": [
           {
@@ -1006,6 +1547,420 @@
         "summary": "Cancelar um agendamento",
         "tags": [
           "appointments"
+        ]
+      }
+    },
+    "/api/public/v1/availability": {
+      "get": {
+        "description": "Retorna, dia a dia, os inícios livres para agendar o tipo de atendimento com o profissional: dentro do horário de atendimento do tipo, fora de bloqueios da agenda, sem outro agendamento no intervalo e no futuro. Os horários seguem a duração do atendimento (`duration_minutes`). Cada horário listado é aceito por `POST /appointments` sem `allow_overlap`, salvo se outra pessoa o ocupar antes. Salas não são consideradas: a criação ainda pode responder `409` com `code` `room_required`. A janela vai de `start_date` a `end_date`, inclusive, com no máximo 31 dias. Profissional sem horários configurados (`working_hours_configured: false`) não lista nenhum horário. Requer o escopo `appointments:read`.",
+        "operationId": "availability_retrieve",
+        "parameters": [
+          {
+            "description": "`id` de um tipo de atendimento que o profissional atende: define a duração e a grade de horários.",
+            "in": "query",
+            "name": "appointment_type_id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Último dia da janela (inclusive), `YYYY-MM-DD`. Omitido, vale `start_date`. No máximo 31 dias.",
+            "in": "query",
+            "name": "end_date",
+            "schema": {
+              "format": "date",
+              "type": "string"
+            }
+          },
+          {
+            "description": "`professional.id` de um profissional ativo da clínica que atende pacientes.",
+            "in": "query",
+            "name": "professional_id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Primeiro dia da janela, `YYYY-MM-DD`.",
+            "in": "query",
+            "name": "start_date",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicAvailability"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "summary": "Consultar horários livres",
+        "tags": [
+          "availability"
+        ]
+      }
+    },
+    "/api/public/v1/calendar-blocks": {
+      "get": {
+        "description": "Retorna os bloqueios de agenda ativos da clínica, ordenados por data. Bloqueios desativados não aparecem na lista, mas continuam respondendo pelo `id`. Requer o escopo `appointments:read`.",
+        "operationId": "calendar_blocks_list",
+        "parameters": [
+          {
+            "description": "Cursor de paginação retornado em `next`/`previous`.",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "end_date",
+            "schema": {
+              "format": "date",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Resultados por página (padrão 50, máximo 100).",
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "professional_id",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "start_date",
+            "schema": {
+              "format": "date",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaginatedPublicCalendarBlockList"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "summary": "Listar bloqueios de agenda",
+        "tags": [
+          "calendar-blocks"
+        ]
+      },
+      "post": {
+        "description": "Cria um bloqueio de agenda de um profissional: o dia inteiro (`full_day`) ou um intervalo (`time_range`, com `start_time` e `end_time`). O bloqueio pode cair sobre agendamentos já existentes, que ficam como estão: liste os agendamentos do dia com `GET /appointments` antes de bloquear. Bloqueios recorrentes não existem na API: crie um por dia, em loop. Nada é apagado: para remover um bloqueio use `POST /calendar-blocks/{id}/deactivate`, e só o aplicativo o reativa. Requer o escopo `calendar_blocks:write`. Envie `Idempotency-Key` para poder repetir a chamada com segurança.",
+        "operationId": "calendar_blocks_create",
+        "parameters": [
+          {
+            "description": "Chave opcional (até 255 caracteres) que torna a criação idempotente: repetir a mesma requisição com a mesma chave em até 24 horas devolve o registro já criado, com o cabeçalho `Idempotent-Replayed: true`, em vez de criar outro. A mesma chave com um corpo diferente, ou em outro endpoint, responde `422`.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PublicCalendarBlockCreate"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/PublicCalendarBlockCreate"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/PublicCalendarBlockCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicCalendarBlock"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "summary": "Criar um bloqueio de agenda",
+        "tags": [
+          "calendar-blocks"
+        ]
+      }
+    },
+    "/api/public/v1/calendar-blocks/{id}": {
+      "get": {
+        "description": "Retorna um bloqueio de agenda pelo `id`, inclusive um já desativado (`active: false`). Requer o escopo `appointments:read`.",
+        "operationId": "calendar_blocks_retrieve",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "pattern": "^\\d+$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicCalendarBlock"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "summary": "Consultar um bloqueio de agenda",
+        "tags": [
+          "calendar-blocks"
+        ]
+      },
+      "patch": {
+        "description": "Altera apenas os campos enviados; `reason: null` apaga o motivo. Já `null` em `start_time` ou `end_time` é ignorado, e num bloqueio `full_day` os horários enviados também são ignorados. Um bloqueio desativado responde `409` com `code` `calendar_block_inactive`: só o aplicativo o reativa. Requer o escopo `calendar_blocks:write`.",
+        "operationId": "calendar_blocks_partial_update",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "pattern": "^\\d+$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PatchedPublicCalendarBlockUpdate"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/PatchedPublicCalendarBlockUpdate"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/PatchedPublicCalendarBlockUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicCalendarBlock"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "summary": "Alterar um bloqueio de agenda",
+        "tags": [
+          "calendar-blocks"
+        ]
+      }
+    },
+    "/api/public/v1/calendar-blocks/{id}/deactivate": {
+      "post": {
+        "description": "Desativa o bloqueio, que deixa de impedir agendamentos e sai da lista, mas continua respondendo pelo `id` com `active: false`. Pode ser repetido sem efeito. Nada é apagado. Requer o escopo `calendar_blocks:write`.",
+        "operationId": "calendar_blocks_deactivate_create",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "pattern": "^\\d+$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicCalendarBlock"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "summary": "Desativar um bloqueio de agenda",
+        "tags": [
+          "calendar-blocks"
+        ]
+      }
+    },
+    "/api/public/v1/health-plans": {
+      "get": {
+        "description": "Retorna os convênios ativos da clínica, incluindo o atendimento particular. Com `professional_id`, só os que aquele profissional aceita. É informativo: `POST /appointments` sempre cria o agendamento como Particular. Requer o escopo `appointments:read`.",
+        "operationId": "health_plans_list",
+        "parameters": [
+          {
+            "description": "Cursor de paginação retornado em `next`/`previous`.",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Resultados por página (padrão 50, máximo 100).",
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "professional_id",
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaginatedPublicHealthPlanList"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "summary": "Listar convênios",
+        "tags": [
+          "health-plans"
+        ]
+      }
+    },
+    "/api/public/v1/health-plans/{id}": {
+      "get": {
+        "description": "Retorna um convênio ativo da clínica pelo `id`. É informativo: `POST /appointments` sempre cria o agendamento como Particular. Requer o escopo `appointments:read`.",
+        "operationId": "health_plans_retrieve",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "pattern": "^\\d+$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicHealthPlan"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "summary": "Consultar um convênio",
+        "tags": [
+          "health-plans"
         ]
       }
     },
@@ -1411,6 +2366,71 @@
         "summary": "Consultar uma sala",
         "tags": [
           "rooms"
+        ]
+      }
+    },
+    "/api/public/v1/working-hours": {
+      "get": {
+        "description": "Retorna, dia a dia, as faixas de horário em que o profissional atende, já resolvidas para cada data (grade semanal mais datas extras). A janela vai de `start_date` a `end_date`, inclusive, com no máximo 62 dias. Com `appointment_type_id`, vale a grade desse tipo; sem ele, vale o horário mais amplo entre todos os tipos. `working_hours_configured: false` significa que o profissional nunca configurou horários: nada o restringe e todos os dias vêm com `shifts` vazio. Requer o escopo `appointments:read`.",
+        "operationId": "working_hours_retrieve",
+        "parameters": [
+          {
+            "description": "`id` de um tipo de atendimento que o profissional atende. Com ele, os horários valem para esse tipo; sem ele, vale o mais amplo entre todos os tipos.",
+            "in": "query",
+            "name": "appointment_type_id",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Último dia da janela (inclusive), `YYYY-MM-DD`. Omitido, vale `start_date`. No máximo 62 dias.",
+            "in": "query",
+            "name": "end_date",
+            "schema": {
+              "format": "date",
+              "type": "string"
+            }
+          },
+          {
+            "description": "`professional.id` de um profissional ativo da clínica que atende pacientes.",
+            "in": "query",
+            "name": "professional_id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Primeiro dia da janela, `YYYY-MM-DD`.",
+            "in": "query",
+            "name": "start_date",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicWorkingHours"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "summary": "Consultar horários de atendimento",
+        "tags": [
+          "working-hours"
         ]
       }
     }

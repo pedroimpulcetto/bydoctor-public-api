@@ -1,0 +1,134 @@
+---
+title: "Disponibilidade"
+description: "Consultar os horários livres de um profissional para um tipo de atendimento, prontos para usar como start_at na criação de agendamentos."
+---
+
+`GET /availability` devolve, dia a dia, os horários em que um profissional pode receber um agendamento de um tipo de atendimento. Use-o antes de criar um agendamento, em vez de testar horários em [`POST /appointments`](/agendamentos#criar-um-agendamento).
+
+| Método | Rota | Escopo | Descrição |
+|---|---|---|---|
+| `GET` | `/availability` | `appointments:read` | Horários livres de um profissional para um tipo de atendimento |
+
+A rota não tem barra final e não é paginada: a resposta é um único objeto.
+
+## Consultar horários livres
+
+```bash
+curl -H "Authorization: Bearer bd_live_xxxxxxxx.yyyy" \
+  "https://api.bydoctor.com.br/api/public/v1/availability?professional_id=12&appointment_type_id=4&start_date=2026-11-23&end_date=2026-11-24"
+```
+
+| Parâmetro | Tipo | Obrigatório | Descrição |
+|---|---|---|---|
+| `professional_id` | `integer` | sim | `id` de um profissional ativo da clínica, listado em [`GET /professionals`](/profissionais). |
+| `appointment_type_id` | `integer` | sim | `id` de um tipo de atendimento que o profissional atende, listado em [`GET /appointment-types?professional_id=`](/tipos-de-atendimento). Define a duração e a grade de horários. |
+| `start_date` | `date` | sim | Primeiro dia da janela, `YYYY-MM-DD`. |
+| `end_date` | `date` | não | Último dia da janela (inclusive). Omitido, vale `start_date`. A janela tem no máximo **31 dias**. |
+
+```json
+{
+  "professional_id": 12,
+  "appointment_type_id": 4,
+  "duration_minutes": 30,
+  "working_hours_configured": true,
+  "days": [
+    { "date": "2026-11-23", "slots": ["2026-11-23T08:00:00-03:00", "2026-11-23T08:30:00-03:00"] },
+    { "date": "2026-11-24", "slots": [] }
+  ]
+}
+```
+
+| Campo | Tipo | Descrição |
+|---|---|---|
+| `professional_id` | `integer` | O profissional consultado. |
+| `appointment_type_id` | `integer` | O tipo de atendimento consultado. |
+| `duration_minutes` | `integer` | Duração do atendimento desse tipo com esse profissional. É também o intervalo entre os horários listados. |
+| `working_hours_configured` | `boolean` | `false` quando o profissional nunca configurou horários de atendimento. Veja [abaixo](#profissional-sem-horários-configurados). |
+| `days` | `array` | Um item por dia da janela, em ordem, mesmo quando o dia não tem horário livre. |
+| `days[].date` | `date` | O dia. |
+| `days[].slots` | `array` de `datetime` | Inícios livres, em ordem, no fuso horário da clínica. Lista vazia: nenhum horário livre nesse dia. |
+
+Cada valor de `slots` está pronto para ser enviado como `start_at` em `POST /appointments`.
+
+## O que é um horário livre
+
+Um horário só é listado se `POST /appointments` o aceitaria agora, sem `allow_overlap`. Ele atende às três regras de horário da criação:
+
+- está dentro dos [horários de atendimento](/horarios-de-atendimento) do profissional para o tipo;
+- não se sobrepõe a nenhum [bloqueio de agenda](/bloqueios-de-agenda) ativo (um horário que termina quando o bloqueio começa é aceito);
+- não se sobrepõe a outro agendamento não cancelado do profissional na clínica.
+
+Além disso, a lista só traz horários que começam no futuro. Esse filtro é só da disponibilidade: a criação aceita `start_at` até 1 ano no passado.
+
+Os horários partem do início de cada faixa de atendimento e avançam de `duration_minutes` em `duration_minutes`. Numa faixa de 08:00 a 12:00 com duração de 30 minutos, os candidatos são 08:00, 08:30, 09:00 e assim por diante, até 11:30. Um horário ocupado sai da lista; os outros não mudam de posição.
+
+## Profissional sem horários configurados
+
+Quando o profissional nunca configurou horários de atendimento, a resposta traz `working_hours_configured: false` e todos os dias com `slots: []`. A API não lista nada porque não sabe quando ele atende.
+
+Isso não quer dizer que a agenda está fechada. Para esse profissional, `POST /appointments` não recusa nenhum horário com `outside_working_hours`; os bloqueios de agenda e os conflitos com outros agendamentos continuam valendo. Combine o horário com a clínica ou peça que ela configure os horários do profissional no aplicativo.
+
+## Salas não entram na conta
+
+A disponibilidade não considera salas. Se a clínica exige sala em atendimentos presenciais e a grade do profissional não tem uma sala padrão para o horário, a criação responde `409` com `code: "room_required"`, mesmo para um horário listado aqui. Envie `room_id` com um `id` de [`GET /rooms`](/salas).
+
+## O horário pode ser ocupado antes de você criar
+
+A lista é uma fotografia do momento da consulta. Entre a leitura e a escrita, a equipe da clínica ou outra integração pode ocupar o horário. Nesse caso a criação responde `409` com `code: "appointment_overlap"` (ou `slot_blocked`, se um bloqueio foi criado). Consulte a disponibilidade de novo e ofereça outro horário. Não repita com `allow_overlap: true` por conta própria: isso marca um encaixe sobre o agendamento que chegou primeiro.
+
+## Receita: consultar horários e agendar
+
+<Steps>
+  <Step title="Escolha o profissional e o tipo">
+    Liste os tipos que o profissional atende com [`GET /appointment-types?professional_id=12`](/tipos-de-atendimento). Cada tipo traz a duração e o valor Particular para esse profissional.
+  </Step>
+  <Step title="Consulte os horários livres">
+    ```bash
+    curl -H "Authorization: Bearer bd_live_xxxxxxxx.yyyy" \
+      "https://api.bydoctor.com.br/api/public/v1/availability?professional_id=12&appointment_type_id=4&start_date=2026-11-23"
+    ```
+  </Step>
+  <Step title="Crie o agendamento com Idempotency-Key">
+    Envie o horário escolhido como `start_at`, sem alterar o valor. O cabeçalho [`Idempotency-Key`](/agendamentos#idempotency-key) permite repetir a chamada depois de um timeout sem criar dois agendamentos.
+
+    ```bash
+    curl -X POST \
+      -H "Authorization: Bearer bd_live_xxxxxxxx.yyyy" \
+      -H "Content-Type: application/json" \
+      -H "Idempotency-Key: 7d3f9b52-1c4e-4a8b-9f60-2e5a8c1d4b77" \
+      -d '{
+        "patient_id": 981,
+        "professional_id": 12,
+        "appointment_type_id": 4,
+        "start_at": "2026-11-23T08:30:00-03:00"
+      }' \
+      "https://api.bydoctor.com.br/api/public/v1/appointments"
+    ```
+  </Step>
+  <Step title="Trate o 409">
+    Em `appointment_overlap` ou `slot_blocked`, volte ao segundo passo. Em `room_required`, repita com `room_id`.
+  </Step>
+</Steps>
+
+## Erros
+
+Um parâmetro inválido responde `400 Bad Request` com o erro por parâmetro, no mesmo formato das outras rotas: `{"start_date": ["mensagem"]}`.
+
+| Parâmetro | Mensagem | Quando |
+|---|---|---|
+| `professional_id`, `appointment_type_id`, `start_date` | `This field is required.` | Parâmetro obrigatório ausente. |
+| `professional_id` | `No active professional with this id in your clinic. List them with GET /professionals.` | `id` inexistente, inativo ou de outra clínica. |
+| `appointment_type_id` | `No active appointment type with this id in your clinic. List them with GET /appointment-types.` | `id` inexistente, inativo ou de outra clínica. |
+| `appointment_type_id` | `This professional does not offer this appointment type. List the types they offer with GET /appointment-types?professional_id=<professional_id>.` | O profissional não atende esse tipo. |
+| `start_date` | `start_date cannot be after end_date.` | Janela invertida. |
+| `end_date` | `The date range must span at most 31 days (start_date to end_date, inclusive).` | Janela maior que 31 dias. |
+| `start_date` | `The date range must end before AAAA-MM-DD (two years in the future): POST /appointments refuses a later start_at.` | A janela alcança o limite futuro que a criação aplica a `start_at`. A mensagem traz a data-limite do dia. |
+| `start_date`, `end_date` | `Invalid date. Use YYYY-MM-DD (year-month-day), e.g. 1990-05-10.` | Data fora do formato. |
+
+Uma janela no passado não é um erro: os dias vêm com `slots: []`.
+
+| Código | Quando acontece |
+|---|---|
+| `401 Unauthorized` | Chave ausente, revogada ou expirada. |
+| `403 Forbidden` | Chave sem o escopo `appointments:read`. |
+| `429 Too Many Requests` | Limite de requisições excedido. Veja [Autenticação](/autenticacao#limites-de-uso-rate-limits). |

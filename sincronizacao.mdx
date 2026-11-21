@@ -25,7 +25,7 @@ Se você mantém uma cópia local dos agendamentos da clínica (para um BI, um C
   </Step>
 </Steps>
 
-A mesma receita vale para [pacientes](/pacientes): `GET /patients?updated_since=...` segue a mesma ordem e a mesma paginação. Pacientes não têm webhooks, então ali o polling é o único caminho.
+A mesma receita vale para [pacientes](/pacientes): `GET /patients?updated_since=...` segue a mesma ordem e a mesma paginação. Os eventos `patient.created` e `patient.updated` cobrem o tempo real, do mesmo jeito que os eventos de agendamento.
 
 ## Cancelamentos não desaparecem
 

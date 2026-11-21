@@ -14,42 +14,72 @@ Authorization: Bearer bd_live_<id>.<secret>
 A chave tem duas partes separadas por um ponto: um identificador de prefixo (`bd_live_<id>`) e um segredo (`<secret>`). Ambas juntas formam a credencial completa.
 
 <Warning>
-  A chave é exibida **uma única vez**, no momento da criação, em **Minha Clínica → API e Webhooks**. O ByDoctor armazena apenas o hash — não é possível recuperar uma chave perdida. Se isso acontecer, revogue a chave antiga e crie uma nova.
+  A chave é exibida **uma única vez**, no momento da criação, em **Automação → API e Webhooks**. O ByDoctor armazena apenas o hash — não é possível recuperar uma chave perdida. Se isso acontecer, revogue a chave antiga e crie uma nova.
 </Warning>
 
 ## Escopos
 
-Na criação, em **Minha Clínica → API e Webhooks**, você escolhe o acesso da chave: **Somente leitura** (`appointments:read` + `patients:read`) ou **Acesso total** (os quatro escopos). Uma rota exige exatamente um escopo; uma chave sem ele recebe `403 Forbidden`.
+Na criação, em **Automação → API e Webhooks**, você escolhe o acesso da chave:
+
+| Acesso | Escopos |
+|---|---|
+| **Somente leitura** | `appointments:read` e `patients:read` |
+| **Acesso total** | Os dois de leitura, mais `appointments:write`, `patients:write` e `calendar_blocks:write` |
+
+`notifications:send` não faz parte de nenhum dos dois: ele é sempre escolhido à parte, em uma chave de Acesso total, porque a mensagem chega a um paciente.
+
+Uma rota exige exatamente um escopo; uma chave sem ele recebe `403 Forbidden`.
 
 | Escopo | Concede |
 |---|---|
-| `appointments:read` | `GET /appointments` e `GET /appointments/{id}`, mais as listas de [profissionais](/profissionais), [salas](/salas) e [tipos de atendimento](/tipos-de-atendimento) |
+| `appointments:read` | `GET /appointments` e `GET /appointments/{id}`, mais as leituras de apoio ao agendamento: [profissionais](/profissionais), [salas](/salas), [tipos de atendimento](/tipos-de-atendimento), [convênios](/convenios) (`/health-plans`), [disponibilidade](/disponibilidade) (`/availability`), [horários de atendimento](/horarios-de-atendimento) (`/working-hours`) e a leitura de [bloqueios de agenda](/bloqueios-de-agenda) (`/calendar-blocks`) |
 | `appointments:write` | `POST /appointments`, `PATCH /appointments/{id}` e `POST /appointments/{id}/cancel` |
 | `patients:read` | `GET /patients` e `GET /patients/{id}` |
 | `patients:write` | `POST /patients` e `PATCH /patients/{id}` |
+| `calendar_blocks:write` | `POST /calendar-blocks`, `PATCH /calendar-blocks/{id}` e `POST /calendar-blocks/{id}/deactivate` |
+| `notifications:send` | Usar `notify_patient: true` em `POST /appointments`, que envia ao paciente a mensagem de "agendamento criado" por WhatsApp. Veja [Avisar o paciente](/agendamentos#avisar-o-paciente-notify_patient). |
 
-Por padrão uma chave nasce **somente leitura**; a escrita é concedida por chave, de forma explícita. Os escopos de uma chave não podem ser alterados depois — crie uma chave nova e revogue a antiga.
+Por padrão uma chave nasce **somente leitura**; a escrita é concedida por chave, de forma explícita.
+
+<Warning>
+  As permissões de uma chave não podem ser alteradas depois de criada. Para usar `calendar_blocks:write` ou `notifications:send` em uma integração que já tem chave, crie uma chave nova com esses acessos, troque-a na integração e revogue a antiga.
+</Warning>
+
+As leituras novas (`/availability`, `/working-hours`, `/calendar-blocks` e `/health-plans`) exigem só `appointments:read`. Uma chave que já lê agendamentos lê essas rotas sem ser recriada.
 
 Uma chave sem o escopo recebe `403` com a mensagem `This API key does not have the "patients:write" scope.`, nomeando o escopo que falta. Chave ausente, mal formatada, inválida, revogada ou expirada recebe `401` com o motivo; veja [Erros](/erros#401-403-e-404).
 
-Chaves criadas antes da escrita existir continuam somente leitura, e chaves criadas antes dos [pacientes](/pacientes) existirem não recebem os escopos de pacientes: o acesso ao cadastro de pacientes nunca é concedido a uma chave existente sem que a clínica crie uma nova.
+Uma chave existente nunca ganha um escopo novo. Chaves criadas antes da escrita existir continuam somente leitura. Chaves criadas antes dos [pacientes](/pacientes) existirem não têm os escopos de pacientes. Nenhuma chave criada antes de `calendar_blocks:write` e `notifications:send` existirem tem esses dois escopos, nem as de Acesso total.
 
 ## Revogação e expiração
 
-Revogar uma chave em **Minha Clínica → API e Webhooks** tem efeito **imediato**: a próxima requisição com essa chave recebe `401 Unauthorized`. Não há período de carência.
+Revogar uma chave em **Automação → API e Webhooks** tem efeito **imediato**: a próxima requisição com essa chave recebe `401 Unauthorized`. Não há período de carência.
 
 Uma chave também pode ter uma data de expiração (`expires_at`), definida na criação. Uma vez expirada, ela passa a se comportar como uma chave revogada: toda requisição recebe `401 Unauthorized`.
 
 ## Limites de uso (rate limits)
 
-Cada chave está sujeita a dois limites, aplicados de forma independente:
+Cada chave está sujeita a quatro limites:
 
-| Limite | Valor |
-|---|---|
-| Por minuto | 60 requisições |
-| Por dia | 10.000 requisições |
+| Limite | Conta | Por minuto | Por dia |
+|---|---|---|---|
+| Geral | Toda requisição, leitura ou escrita | 60 | 10.000 |
+| Escritas | Só requisições que não são de leitura (`POST` e `PATCH`) | 20 | 1.000 |
+
+Uma escrita conta nos dois: ela gasta o limite geral e o limite de escritas. Uma leitura gasta só o limite geral.
 
 Ao exceder um dos limites, a API responde `429 Too Many Requests` com um cabeçalho `Retry-After` indicando em quantos segundos tentar novamente. Implemente backoff e nova tentativa; não faça polling agressivo — para manter uma cópia local em dia, prefira a receita de [sincronização](/sincronizacao) combinada com webhooks.
+
+Dois detalhes de contagem:
+
+- A API confere os limites em ordem, os por minuto antes dos por dia, e para no primeiro que recusa. Uma requisição recusada não é contada nos limites seguintes: uma rajada de `429` num limite por minuto não gasta o orçamento do dia.
+- Uma requisição recusada com `403` por falta de escopo **conta** nos limites. Uma integração que insiste em uma rota sem permissão acaba recebendo `429`.
+
+## Atividade da chave
+
+A clínica acompanha o que cada chave fez em **Automação → API e Webhooks**: cada requisição autenticada aparece com data e hora, ação, registro e resultado. O registro guarda só identificadores e códigos, nunca o corpo da requisição nem dados de pacientes. Requisições recusadas com `429` não entram na lista. O registro é mantido por 90 dias.
+
+As escritas também ficam assinadas pela chave no histórico do registro alterado. Veja [Quem fez a alteração](/agendamentos#quem-fez-a-alteração).
 
 ## Segurança
 

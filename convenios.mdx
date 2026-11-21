@@ -1,0 +1,65 @@
+---
+title: "Convênios"
+description: "Listar os convênios ativos da clínica e os que cada profissional aceita. Rota informativa, somente leitura."
+---
+
+A lista traz os convênios ativos da clínica, incluindo o atendimento particular. Use-a para responder se a clínica ou um profissional atende um convênio.
+
+| Método | Rota | Escopo | Descrição |
+|---|---|---|---|
+| `GET` | `/health-plans` | `appointments:read` | Lista os convênios ativos; `?professional_id=` só os que o profissional aceita |
+| `GET` | `/health-plans/{id}` | `appointments:read` | Detalhe de um convênio |
+
+Nenhuma rota tem barra final. Não há escrita: convênios são cadastrados no aplicativo.
+
+<Note>
+  Esta rota é **informativa**. [`POST /appointments`](/agendamentos#criar-um-agendamento) não recebe convênio: todo agendamento criado pela API nasce como Particular. A clínica ajusta o convênio no aplicativo, se necessário.
+</Note>
+
+## Listar convênios
+
+```bash
+curl -H "Authorization: Bearer bd_live_xxxxxxxx.yyyy" \
+  "https://api.bydoctor.com.br/api/public/v1/health-plans"
+```
+
+```json
+{
+  "next": null,
+  "previous": null,
+  "results": [
+    { "id": 1, "name": "Particular", "is_particular": true },
+    { "id": 7, "name": "Convênio Exemplo", "is_particular": false }
+  ]
+}
+```
+
+A resposta tem o mesmo formato paginado das outras listas (`next`, `previous`, `results`), em ordem de `id`.
+
+| Filtro | Tipo | Descrição |
+|---|---|---|
+| `professional_id` | `integer` | Só os convênios que esse profissional aceita. O atendimento particular sempre entra. Um `id` que não é de um profissional ativo da sua clínica devolve a lista vazia. |
+
+```bash
+curl -H "Authorization: Bearer bd_live_xxxxxxxx.yyyy" \
+  "https://api.bydoctor.com.br/api/public/v1/health-plans?professional_id=12"
+```
+
+| Campo | Tipo | Descrição |
+|---|---|---|
+| `id` | `integer` | Identificador do convênio. |
+| `name` | `string` | Nome do convênio. |
+| `is_particular` | `boolean` | `true` para o atendimento particular, sem convênio. |
+
+## Buscar um convênio
+
+```bash
+curl -H "Authorization: Bearer bd_live_xxxxxxxx.yyyy" \
+  "https://api.bydoctor.com.br/api/public/v1/health-plans/7"
+```
+
+Um `id` inexistente, inativo ou de outra clínica responde `404 Not Found` com `{"detail": "No health plan with this id in your clinic."}`.
+
+## O que a API não devolve
+
+O objeto traz só `id`, `name` e `is_particular`. Valores de convênio nunca aparecem na API. O único valor que a API devolve é o Particular, em [`GET /appointment-types?professional_id=`](/tipos-de-atendimento).

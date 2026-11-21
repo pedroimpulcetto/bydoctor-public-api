@@ -1,11 +1,11 @@
 ---
 title: "API do ByDoctor"
-description: "Leia, crie, altere e cancele agendamentos, cadastre pacientes por REST e receba webhooks em tempo real, para clínicas integrarem o ByDoctor aos próprios sistemas."
+description: "Consulte horários livres, crie, altere e cancele agendamentos, cadastre pacientes e bloqueie a agenda por REST, e receba webhooks em tempo real, para clínicas integrarem sistemas próprios e agentes de IA ao ByDoctor."
 ---
 
-A API pública do ByDoctor dá às clínicas e aos fornecedores de software que as atendem acesso programático aos agendamentos e ao cadastro de pacientes da clínica — para sincronizar dados com um sistema próprio, alimentar um BI interno, reagir a mudanças de agenda em tempo real ou marcar consultas a partir de outro sistema.
+A API pública do ByDoctor dá às clínicas e aos fornecedores de software que as atendem acesso programático à agenda e ao cadastro de pacientes da clínica — para sincronizar dados com um sistema próprio, alimentar um BI interno, reagir a mudanças de agenda em tempo real, marcar consultas a partir de outro sistema ou conectar um agente de IA que atende pacientes e a equipe.
 
-Cada chave é **Somente leitura** (ler agendamentos e pacientes) ou **Acesso total** (também cadastrar pacientes e criar, alterar e cancelar agendamentos presenciais), escolhido na criação. Webhooks avisam de toda mudança de agendamento, venha ela do aplicativo, do paciente ou da API.
+Cada chave é **Somente leitura** (ler agendamentos, horários livres e pacientes) ou **Acesso total** (também cadastrar pacientes, criar, alterar e cancelar agendamentos presenciais e bloquear horários da agenda), escolhido na criação. Enviar mensagem de WhatsApp ao paciente é uma permissão à parte. Webhooks avisam de toda mudança de agendamento, de paciente e de bloqueio de agenda, venha ela do aplicativo, do paciente ou da API.
 
 <CardGroup cols={2}>
   <Card title="Primeiros passos" icon="rocket" href="/primeiros-passos">
@@ -17,11 +17,17 @@ Cada chave é **Somente leitura** (ler agendamentos e pacientes) ou **Acesso tot
   <Card title="Agendamentos" icon="calendar" href="/agendamentos">
     Listar, criar, alterar e cancelar; filtros e paginação por cursor.
   </Card>
+  <Card title="Disponibilidade" icon="clock" href="/disponibilidade">
+    Os horários livres de um profissional, prontos para agendar.
+  </Card>
+  <Card title="Bloqueios de agenda" icon="ban" href="/bloqueios-de-agenda">
+    Listar, criar, alterar e desativar folgas e intervalos sem atendimento.
+  </Card>
   <Card title="Pacientes" icon="user" href="/pacientes">
     Encontrar pelo CPF ou telefone, cadastrar e alterar pacientes para agendar.
   </Card>
   <Card title="Webhooks" icon="webhook" href="/webhooks">
-    O envelope de evento, os três tipos de evento e a política de reentrega.
+    O envelope de evento, os oito tipos de evento e a política de reentrega.
   </Card>
 </CardGroup>
 
@@ -30,19 +36,39 @@ Cada chave é **Somente leitura** (ler agendamentos e pacientes) ou **Acesso tot
 
   - Base URL: `https://api.bydoctor.com.br/api/public/v1`
   - Autenticação: `Authorization: Bearer bd_live_<id>.<secret>`
-  - Escopos: `appointments:read`, `patients:read`, `appointments:write` e `patients:write`, por chave
-  - Formato: JSON, UTF-8, horários em `America/Sao_Paulo` (`-03:00`)
-  - Limites: 60 requisições/min e 10.000 requisições/dia por chave
-  - Eventos de webhook: `appointment.created`, `appointment.updated`, `appointment.cancelled`
+  - Escopos: `appointments:read`, `patients:read`, `appointments:write`, `patients:write`, `calendar_blocks:write` e `notifications:send`, por chave
+  - Formato: JSON, UTF-8, horários no fuso horário da clínica (padrão `America/Sao_Paulo`, `-03:00`)
+  - Limites por chave: 60 requisições/min e 10.000/dia; escritas, 20/min e 1.000/dia
+  - Eventos de webhook: `appointment.created`, `appointment.updated`, `appointment.cancelled`, `patient.created`, `patient.updated`, `calendar_block.created`, `calendar_block.updated`, `calendar_block.deactivated`
+  - Não existe rota `DELETE`: agendamentos são cancelados e bloqueios são desativados
 </Info>
 
 ## Como a API se encaixa
 
-- **Agendamentos** (`/agendamentos`): consulte a agenda da clínica por período, status, profissional, paciente, sala ou modalidade, com paginação por cursor; crie, altere e cancele agendamentos presenciais com o escopo de escrita.
+- **Agendamentos** (`/agendamentos`): consulte a agenda da clínica por período, status, profissional, paciente, sala ou modalidade, com paginação por cursor; crie, altere e cancele agendamentos presenciais com o escopo de escrita, e avise o paciente por WhatsApp na criação.
+- **Disponibilidade** (`/disponibilidade`) e **Horários de atendimento** (`/horarios-de-atendimento`): os horários livres de um profissional para um tipo de atendimento e as faixas em que ele atende em cada dia.
+- **Bloqueios de agenda** (`/bloqueios-de-agenda`): liste, crie, altere e desative folgas e intervalos sem atendimento.
 - **Pacientes** (`/pacientes`): encontre o paciente pelo CPF ou telefone e cadastre-o se não existir, para usar o `id` na criação de agendamentos. CPF, e-mail e data de nascimento são gravados, mas nunca devolvidos.
-- **Profissionais** (`/profissionais`), **Salas** (`/salas`) e **Tipos de atendimento** (`/tipos-de-atendimento`): os ids que a criação de agendamentos pede, em listas somente leitura com o mínimo de dados.
+- **Profissionais** (`/profissionais`), **Salas** (`/salas`) e **Tipos de atendimento** (`/tipos-de-atendimento`): os ids que a criação de agendamentos pede, em listas somente leitura com o mínimo de dados. Os tipos trazem a duração e o valor Particular de cada profissional.
+- **Convênios** (`/convenios`): os convênios ativos da clínica e os que cada profissional aceita, para consulta.
 - **Sincronização** (`/sincronizacao`): a receita recomendada para manter uma cópia local da agenda em dia, combinando `updated_since` com webhooks.
-- **Webhooks** (`/webhooks`): receba `appointment.created`, `appointment.updated` e `appointment.cancelled` assim que acontecem, com entrega pelo menos uma vez (at-least-once) e reentrega automática.
+- **Webhooks** (`/webhooks`): receba os eventos de agendamentos, pacientes e bloqueios de agenda assim que acontecem, com entrega pelo menos uma vez (at-least-once) e reentrega automática.
 - **Verificação de assinatura** (`/verificacao-de-assinatura`): valide a origem de cada evento recebido usando o padrão [Standard Webhooks](https://www.standardwebhooks.com).
 
-As chaves de API são criadas dentro do próprio ByDoctor, em **Minha Clínica → API e Webhooks**, e concedem acesso a dados de pacientes e de agendamentos — trate-as como um segredo de produção.
+## Para agentes de IA
+
+A API serve tanto a um agente que atende pacientes (uma recepção por WhatsApp que marca e remarca) quanto a um assistente da equipe (que responde sobre a agenda e bloqueia horários). O caminho de um agendamento feito por um agente:
+
+1. Encontre ou cadastre o paciente em [Pacientes](/pacientes#encontrar-ou-criar-um-paciente).
+2. Liste os tipos que o profissional atende, com duração e valor, em [Tipos de atendimento](/tipos-de-atendimento).
+3. Consulte os horários livres em [Disponibilidade](/disponibilidade).
+4. Crie o agendamento em [Agendamentos](/agendamentos#criar-um-agendamento), com `Idempotency-Key`.
+
+A clínica mantém o controle do que o agente faz:
+
+- Cada permissão é concedida por chave. Bloquear a agenda (`calendar_blocks:write`) e enviar mensagem ao paciente (`notifications:send`) nunca entram em uma chave já existente.
+- As escritas têm um limite próprio, menor que o limite geral. Veja [Limites de uso](/autenticacao#limites-de-uso-rate-limits).
+- A clínica vê a atividade de cada chave em **Automação → API e Webhooks**, e as alterações aparecem no aplicativo como "Integração (API)", com o nome da chave.
+- Nenhuma rota remove registros. Não existe `DELETE`.
+
+As chaves de API são criadas dentro do próprio ByDoctor, em **Automação → API e Webhooks**, e concedem acesso a dados de pacientes e de agendamentos — trate-as como um segredo de produção.
