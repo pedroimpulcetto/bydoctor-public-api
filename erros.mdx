@@ -11,13 +11,13 @@ Toda resposta de erro diz o que foi recusado **e o que é aceito**. As mensagens
 |---|---|---|
 | `400 Bad Request` | `{"campo": ["mensagem"]}`, uma lista por campo | Corpo ou filtro inválido. Vários campos podem vir juntos. Um erro que não é de um campo específico vem em `non_field_errors`. |
 | `401 Unauthorized` | `{"detail": "mensagem"}` | Chave ausente, mal formatada, inválida, revogada ou expirada. |
-| `403 Forbidden` | `{"detail": "mensagem"}` | A chave não tem o escopo da rota. A mensagem nomeia o escopo. |
-| `404 Not Found` | `{"detail": "mensagem"}` | `id` inexistente, inativo ou de outra clínica. A mensagem nomeia o recurso. |
+| `403 Forbidden` | `{"detail": "mensagem"}` | A chave não tem o escopo da rota, ou o escopo `notifications:send` ao criar com `notify_patient: true`. A mensagem nomeia o escopo. |
+| `404 Not Found` | `{"detail": "mensagem"}` | `id` inexistente, inativo ou de outra clínica. A mensagem nomeia o recurso. Também um cursor de paginação inválido. |
 | `405 Method Not Allowed` | `{"detail": "mensagem"}` | Método que a rota não aceita, como `DELETE`. |
-| `409 Conflict` | `{"code": "...", "detail": "mensagem"}` | Uma regra de negócio recusou a escrita. Veja os códigos em [Agendamentos](/agendamentos#erros) e [Pacientes](/pacientes#erros). |
+| `409 Conflict` | `{"code": "...", "detail": "mensagem"}` | Uma regra de negócio recusou a escrita. Veja os códigos em [Agendamentos](/agendamentos#erros) e [Pacientes](/pacientes#erros), e `calendar_block_inactive` em [Bloqueios de agenda](/bloqueios-de-agenda#alterar-um-bloqueio). Alguns códigos trazem um campo a mais: `overlaps`, `shifts` ou `fields`. |
 | `415 Unsupported Media Type` | `{"detail": "mensagem"}` | Corpo num formato que a API não lê, como `text/plain`. Envie JSON com `Content-Type: application/json`. |
 | `422 Unprocessable Entity` | `{"code": "idempotency_key_reused", "detail": "mensagem"}` | `Idempotency-Key` repetida com outro corpo ou em outro endpoint. |
-| `429 Too Many Requests` | `{"detail": "mensagem"}` + cabeçalho `Retry-After` | Limite de requisições excedido. |
+| `429 Too Many Requests` | `{"detail": "mensagem"}` + cabeçalho `Retry-After` | Limite de requisições excedido: o geral ou o de escritas. Veja [Autenticação](/autenticacao#limites-de-uso-rate-limits). |
 
 Um JSON malformado (por exemplo, uma vírgula depois do último campo) responde `400` com `{"detail": "JSON parse error - ..."}`, apontando a linha e a coluna do problema.
 
@@ -27,8 +27,9 @@ Estas regras valem para o corpo e para os filtros de todas as rotas.
 
 | Tipo | Formato | Exemplo | Mensagem quando inválido |
 |---|---|---|---|
-| Data e hora | ISO 8601, **ano-mês-dia**: `YYYY-MM-DDThh:mm[:ss][+HH:MM\|-HH:MM\|Z]`. Sem fuso, é lida em `America/Sao_Paulo`. | `2026-10-03T14:00:00-03:00` | `Invalid date-time. Use ISO 8601 in year-month-day order: ...` |
+| Data e hora | ISO 8601, **ano-mês-dia**: `YYYY-MM-DDThh:mm[:ss][+HH:MM\|-HH:MM\|Z]`. Sem fuso, é lida no fuso horário da clínica (padrão `America/Sao_Paulo`). | `2026-10-03T14:00:00-03:00` | `Invalid date-time. Use ISO 8601 in year-month-day order: ...` |
 | Data | `YYYY-MM-DD`, **ano-mês-dia** | `1990-05-10` | `Invalid date. Use YYYY-MM-DD (year-month-day), e.g. 1990-05-10.` |
+| Hora | `HH:MM` ou `HH:MM:SS`, no horário local da clínica | `13:00` | `Time has wrong format. Use one of these formats instead: hh:mm[:ss[.uuuuuu]].` |
 | Id | Número inteiro | `123` | `Must be an integer id, e.g. 123.` |
 | Escolha | Um dos valores listados na mensagem | `"M"` | `"X" is not a valid choice. Use one of: M, F, O.` |
 | Campo obrigatório | — | — | `This field is required.` (em campos de escolha, seguido de `Use one of: ...`) |
@@ -51,6 +52,7 @@ Estas regras valem para o corpo e para os filtros de todas as rotas.
 | `appointment_type_id` | `This professional does not offer this appointment type. List the types they offer with GET /appointment-types?professional_id=<professional_id>.` | Escolha um tipo da lista filtrada por `professional_id`. |
 | `room_id` | `No active room with this id in your clinic. List them with GET /rooms.` | Veja [Salas](/salas). |
 | `status` | `"X" is not a valid choice. Use one of: scheduled, confirmed.` | Só esses dois status são escritos pela API. |
+| `notify_patient` | `notify_patient cannot be used with a start_at in the past.` | Avise o paciente só de agendamentos futuros, ou crie sem `notify_patient`. |
 | `non_field_errors` | `Send at least one field to change.` | `PATCH` com corpo vazio, ou só com `allow_overlap`. |
 
 Um id de outra clínica recebe a mesma mensagem de um id inexistente: a API nunca confirma que um id existe fora da sua clínica.
@@ -65,13 +67,41 @@ Um id de outra clínica recebe a mesma mensagem de um id inexistente: a API nunc
 | `birth_date` | `birth_date cannot be in the future.` | — |
 | `non_field_errors` | `Send at least one field to change.` | `PATCH` com corpo vazio. |
 
+### Bloqueios de agenda
+
+| Campo | Mensagem | Como resolver |
+|---|---|---|
+| `professional_id` | `No active professional with this id in your clinic. List them with GET /professionals.` | Veja [Profissionais](/profissionais). |
+| `type` | `This field is required. Use one of: full_day, time_range.` | Obrigatório na criação. |
+| `type` | `"X" is not a valid choice. Use one of: full_day, time_range.` | Só esses dois valores existem. |
+| `date` | `date must be between AAAA-MM-DD and AAAA-MM-DD (today to two years ahead).` | A mensagem traz as datas-limite do dia. |
+| `start_time` | `start_time and end_time are required for time_range blocks.` | Envie os dois horários em um bloqueio `time_range`. |
+| `start_time` | `start_time must be before end_time.` | Corrija a ordem dos horários. |
+| `non_field_errors` | `Send at least one field to change.` | `PATCH` com corpo vazio, ou só com campos que o `PATCH` não aceita, como `active`. |
+
+### Disponibilidade e horários de atendimento
+
+Os parâmetros de [`GET /availability`](/disponibilidade) e [`GET /working-hours`](/horarios-de-atendimento) são validados como um corpo: o erro vem por parâmetro.
+
+| Parâmetro | Mensagem | Rota |
+|---|---|---|
+| `professional_id`, `start_date` | `This field is required.` | As duas. Em `/availability`, também `appointment_type_id`. |
+| `professional_id` | `No active professional with this id in your clinic. List them with GET /professionals.` | As duas. |
+| `appointment_type_id` | `No active appointment type with this id in your clinic. List them with GET /appointment-types.` | As duas. |
+| `appointment_type_id` | `This professional does not offer this appointment type. List the types they offer with GET /appointment-types?professional_id=<professional_id>.` | As duas. |
+| `start_date` | `start_date cannot be after end_date.` | As duas. |
+| `end_date` | `The date range must span at most 31 days (start_date to end_date, inclusive).` | `/availability`. |
+| `end_date` | `The date range must span at most 62 days (start_date to end_date, inclusive).` | `/working-hours`. |
+| `start_date` | `The date range must end before AAAA-MM-DD (two years in the future): POST /appointments refuses a later start_at.` | `/availability`. A data é o limite futuro de `start_at` no dia da consulta. |
+
 ### Filtros
 
 | Parâmetro | Mensagem |
 |---|---|
 | `status` | `Unknown status. Use one of: requested, scheduled, confirmed, checked_in, completed, no_show, cancelled.` |
+| `order` | `Unknown order. Use one of: updated_at, start_at.` |
 | `start_date` | `start_date cannot be after end_date.` |
-| `end_date` | `end_date must be at most 92 days after start_date.` |
+| `end_date` | `end_date must be at most 92 days after start_date.` (lista de agendamentos) |
 | `active` | `Use "true" or "false".` |
 | `cpf`, `phone` | As mesmas mensagens da escrita de pacientes. |
 
@@ -85,5 +115,8 @@ Parâmetros que a rota não conhece são ignorados, não recusados. Confira o no
 | `401` | `Invalid Authorization header format. Send your API key as "Authorization: Bearer <key>".` |
 | `401` | `Invalid API key. Check it was copied whole, or create a new one in Minha Clínica → API e Webhooks.` |
 | `401` | `API key is revoked or expired. Create a new one in Minha Clínica → API e Webhooks.` |
-| `403` | `This API key does not have the "patients:write" scope.` (com o escopo que a rota exige) |
-| `404` | `No patient with this id in your clinic.` (com o recurso da rota: `appointment`, `patient`, `professional`, `room`, `appointment type`) |
+| `403` | `This API key does not have the "patients:write" scope.` (com o escopo que falta: o da rota, ou `notifications:send` em uma criação com `notify_patient: true`) |
+| `404` | `No patient with this id in your clinic.` (com o recurso da rota: `appointment`, `patient`, `professional`, `room`, `appointment type`, `health plan`, `calendar block`) |
+| `404` | `Invalid cursor` (cursor de paginação inválido, ou emitido com outro `order`) |
+
+As mensagens de `401` ainda citam "Minha Clínica". No aplicativo, a aba fica em **Automação → API e Webhooks**.

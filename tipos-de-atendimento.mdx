@@ -1,13 +1,13 @@
 ---
 title: "Tipos de atendimento"
-description: "Listar os tipos de atendimento da clínica para obter o appointment_type_id obrigatório na criação de agendamentos."
+description: "Listar os tipos de atendimento da clínica para obter o appointment_type_id obrigatório na criação de agendamentos, com a duração e o valor Particular de cada profissional."
 ---
 
-A lista traz os tipos de atendimento ativos da clínica, como "Consulta" e "Retorno". Cada profissional atende um subconjunto deles: filtre por `professional_id` para obter exatamente os `id` aceitos como `appointment_type_id` para aquele profissional em [`POST /appointments`](/agendamentos#criar-um-agendamento).
+A lista traz os tipos de atendimento ativos da clínica, como "Consulta" e "Retorno". Cada profissional atende um subconjunto deles: filtre por `professional_id` para obter exatamente os `id` aceitos como `appointment_type_id` para aquele profissional em [`POST /appointments`](/agendamentos#criar-um-agendamento). Com o filtro, cada tipo traz também a duração e o valor Particular daquele profissional.
 
 | Método | Rota | Descrição |
 |---|---|---|
-| `GET` | `/appointment-types` | Lista os tipos de atendimento ativos; `?professional_id=` só os que o profissional atende |
+| `GET` | `/appointment-types` | Lista os tipos de atendimento ativos; `?professional_id=` só os que o profissional atende, com duração e valor |
 | `GET` | `/appointment-types/{id}` | Detalhe de um tipo de atendimento |
 
 As duas rotas exigem o escopo `appointments:read`, que toda chave já tem. Não há escrita: tipos de atendimento são cadastrados no aplicativo.
@@ -24,8 +24,8 @@ curl -H "Authorization: Bearer bd_live_xxxxxxxx.yyyy" \
   "next": null,
   "previous": null,
   "results": [
-    { "id": 4, "name": "Consulta" },
-    { "id": 9, "name": "Retorno" }
+    { "id": 4, "name": "Consulta", "duration_minutes": null, "price": null },
+    { "id": 9, "name": "Retorno", "duration_minutes": null, "price": null }
   ]
 }
 ```
@@ -41,10 +41,35 @@ curl -H "Authorization: Bearer bd_live_xxxxxxxx.yyyy" \
   "https://api.bydoctor.com.br/api/public/v1/appointment-types?professional_id=12"
 ```
 
+```json
+{
+  "next": null,
+  "previous": null,
+  "results": [
+    { "id": 4, "name": "Consulta", "duration_minutes": 30, "price": "250.00" },
+    { "id": 9, "name": "Retorno", "duration_minutes": 20, "price": null }
+  ]
+}
+```
+
 | Campo | Tipo | Descrição |
 |---|---|---|
 | `id` | `integer` | Use como `appointment_type_id`. É o mesmo `appointment_type.id` dos agendamentos. |
 | `name` | `string` | Nome do tipo de atendimento. |
+| `duration_minutes` | `integer` ou `null` | Duração, em minutos, desse tipo com o profissional do filtro `professional_id`. `null` sem o filtro. |
+| `price` | `string` ou `null` | Valor Particular desse tipo com o profissional do filtro, como texto decimal com duas casas (`"250.00"`). `null` sem o filtro, ou quando a clínica não definiu valor. |
+
+### Duração e valor por profissional
+
+`duration_minutes` e `price` pertencem ao par profissional e tipo, não ao tipo sozinho. Por isso:
+
+- com `professional_id`, `duration_minutes` vem preenchido e `price` traz o valor Particular daquele profissional, ou `null` quando a clínica não definiu valor;
+- sem `professional_id`, os dois vêm `null`;
+- em `GET /appointment-types/{id}`, os dois vêm sempre `null`.
+
+`price` é o valor **Particular**. Valores de convênio nunca são devolvidos pela API. Trate `price` como texto decimal, não como número de ponto flutuante.
+
+`duration_minutes` é a duração que um agendamento criado pela API recebe, e o intervalo entre os horários de [`GET /availability`](/disponibilidade).
 
 ## Buscar um tipo de atendimento
 
@@ -52,6 +77,12 @@ curl -H "Authorization: Bearer bd_live_xxxxxxxx.yyyy" \
 curl -H "Authorization: Bearer bd_live_xxxxxxxx.yyyy" \
   "https://api.bydoctor.com.br/api/public/v1/appointment-types/4"
 ```
+
+```json
+{ "id": 4, "name": "Consulta", "duration_minutes": null, "price": null }
+```
+
+A rota de detalhe não recebe `professional_id`: para a duração e o valor, use a lista com o filtro.
 
 Um `id` inexistente, inativo ou de outra clínica responde `404 Not Found` com `{"detail": "No appointment type with this id in your clinic."}`.
 
