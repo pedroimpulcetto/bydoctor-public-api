@@ -174,7 +174,7 @@ O intervalo do agendamento precisa caber inteiro em uma faixa dos [horários de 
 }
 ```
 
-Se o profissional já tem outro agendamento no mesmo intervalo, a API responde `409` com `code: "appointment_overlap"` e `overlaps`, a lista dos agendamentos em conflito (`appointment_id`, `start`, `end` — nunca o paciente). Para encaixar mesmo assim, como o aplicativo faz ao confirmar um encaixe, repita a chamada com `allow_overlap: true`:
+Se o profissional já tem outro agendamento no mesmo intervalo, a API responde `409` com `code: "appointment_overlap"` e `overlaps`, a lista dos agendamentos em conflito (`appointment_id`, `start`, `end` — nunca o paciente). `appointment_id` é um número interno do ByDoctor, não o `id` (UUID) do agendamento: ele não é aceito em `/appointments/{id}` e não aparece em nenhuma outra resposta. Use `start` e `end` para explicar o conflito. Para encaixar mesmo assim, como o aplicativo faz ao confirmar um encaixe, repita a chamada com `allow_overlap: true`:
 
 ```json
 {
@@ -310,7 +310,7 @@ As mensagens exatas de cada validação e as regras de formato estão em [Erros]
 |---|---|
 | `slot_blocked` | Um bloqueio de agenda do profissional cobre parte do intervalo do agendamento. |
 | `outside_working_hours` | O intervalo sai dos horários de atendimento do profissional para o tipo. A resposta traz `shifts`, as faixas do dia (`start_time`, `end_time`); `shifts: []` quer dizer que ele não atende nesse dia. `allow_overlap` não dispensa essa regra. Consulte [`GET /availability`](/disponibilidade). |
-| `appointment_overlap` | O profissional já tem agendamento no intervalo. A resposta traz `overlaps` (`appointment_id`, `start`, `end`). Repita com `allow_overlap: true` para encaixar. |
+| `appointment_overlap` | O profissional já tem agendamento no intervalo. A resposta traz `overlaps` (`appointment_id`, um número interno que não é o `id` UUID do agendamento, `start`, `end`). Repita com `allow_overlap: true` para encaixar. |
 | `room_required` | A clínica exige sala e a grade do profissional não tem sala padrão para o horário — envie `room_id`. |
 | `appointment_status_locked` | O `status` atual não permite a alteração pedida. A resposta pode trazer `fields`, com os nomes dos campos recusados como você os enviou, por exemplo `["start_at"]`. |
 | `appointment_finalized` | O prontuário já foi preenchido; o agendamento está congelado. |

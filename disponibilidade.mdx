@@ -52,12 +52,13 @@ Cada valor de `slots` está pronto para ser enviado como `start_at` em `POST /ap
 
 ## O que é um horário livre
 
-Um horário só é listado se `POST /appointments` o aceitaria agora, sem `allow_overlap`. Ele atende às quatro regras da criação:
+Um horário só é listado se `POST /appointments` o aceitaria agora, sem `allow_overlap`. Ele atende às três regras de horário da criação:
 
 - está dentro dos [horários de atendimento](/horarios-de-atendimento) do profissional para o tipo;
 - não se sobrepõe a nenhum [bloqueio de agenda](/bloqueios-de-agenda) ativo (um horário que termina quando o bloqueio começa é aceito);
-- não se sobrepõe a outro agendamento não cancelado do profissional na clínica;
-- começa no futuro.
+- não se sobrepõe a outro agendamento não cancelado do profissional na clínica.
+
+Além disso, a lista só traz horários que começam no futuro. Esse filtro é só da disponibilidade: a criação aceita `start_at` até 1 ano no passado.
 
 Os horários partem do início de cada faixa de atendimento e avançam de `duration_minutes` em `duration_minutes`. Numa faixa de 08:00 a 12:00 com duração de 30 minutos, os candidatos são 08:00, 08:30, 09:00 e assim por diante, até 11:30. Um horário ocupado sai da lista; os outros não mudam de posição.
 
