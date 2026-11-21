@@ -17,11 +17,11 @@
       },
       {
         "group": "Agendamentos",
-        "pages": ["agendamentos", "sincronizacao"]
+        "pages": ["agendamentos", "disponibilidade", "horarios-de-atendimento", "bloqueios-de-agenda", "sincronizacao"]
       },
       {
         "group": "Cadastros",
-        "pages": ["pacientes", "profissionais", "salas", "tipos-de-atendimento"]
+        "pages": ["pacientes", "profissionais", "salas", "tipos-de-atendimento", "convenios"]
       },
       {
         "group": "Webhooks",

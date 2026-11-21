@@ -1,0 +1,207 @@
+---
+title: "Bloqueios de agenda"
+description: "Listar, criar, alterar e desativar bloqueios de agenda de um profissional: dia inteiro ou intervalo de horas."
+---
+
+Um bloqueio de agenda marca um dia inteiro ou um intervalo em que o profissional não atende, como uma folga ou um congresso. Enquanto está ativo, ele impede novos agendamentos no período: [`POST /appointments`](/agendamentos#criar-um-agendamento) responde `409` com `code: "slot_blocked"` e [`GET /availability`](/disponibilidade) deixa de listar os horários cobertos.
+
+| Método | Rota | Escopo | Descrição |
+|---|---|---|---|
+| `GET` | `/calendar-blocks` | `appointments:read` | Lista os bloqueios ativos, com filtros e paginação |
+| `GET` | `/calendar-blocks/{id}` | `appointments:read` | Detalhe de um bloqueio, ativo ou desativado |
+| `POST` | `/calendar-blocks` | `calendar_blocks:write` | Cria um bloqueio |
+| `PATCH` | `/calendar-blocks/{id}` | `calendar_blocks:write` | Altera campos de um bloqueio ativo |
+| `POST` | `/calendar-blocks/{id}/deactivate` | `calendar_blocks:write` | Desativa um bloqueio |
+
+Nenhuma rota tem barra final. Não existem `PUT` nem `DELETE`: um bloqueio que não vale mais é **desativado**, e continua consultável pelo `id`. Veja [Desativar um bloqueio](#desativar-um-bloqueio).
+
+O escopo `calendar_blocks:write` é concedido por chave, na criação. Chaves criadas antes dele existir não o têm: crie uma chave nova. Veja [Escopos](/autenticacao#escopos).
+
+## O objeto bloqueio
+
+```json
+{
+  "id": 88,
+  "professional_id": 12,
+  "active": true,
+  "type": "time_range",
+  "date": "2026-11-27",
+  "start_time": "13:00:00",
+  "end_time": "18:00:00",
+  "reason": "Congresso",
+  "created_at": "2026-11-21T09:15:00-03:00",
+  "updated_at": "2026-11-21T09:15:00-03:00"
+}
+```
+
+| Campo | Tipo | Descrição |
+|---|---|---|
+| `id` | `integer` | Identificador do bloqueio. |
+| `professional_id` | `integer` | O profissional bloqueado. É o mesmo `id` de [`GET /professionals`](/profissionais). |
+| `active` | `boolean` | `false` quando o bloqueio foi desativado. Um bloqueio desativado não impede agendamentos. |
+| `type` | `string` | `full_day` bloqueia o dia todo. `time_range` bloqueia de `start_time` a `end_time`. |
+| `date` | `date` | Dia do bloqueio, `YYYY-MM-DD`. |
+| `start_time` | `time` ou `null` | Início do intervalo, `HH:MM:SS`, no horário local da clínica. `null` em bloqueios de dia inteiro. |
+| `end_time` | `time` ou `null` | Fim do intervalo. `null` em bloqueios de dia inteiro. |
+| `reason` | `string` ou `null` | Motivo, texto livre da clínica. |
+| `created_at`, `updated_at` | `datetime` | Horários no fuso horário da clínica. |
+
+## Listar bloqueios
+
+```bash
+curl -H "Authorization: Bearer bd_live_xxxxxxxx.yyyy" \
+  "https://api.bydoctor.com.br/api/public/v1/calendar-blocks?professional_id=12&start_date=2026-11-23&end_date=2026-11-29"
+```
+
+A lista traz **só os bloqueios ativos**, em ordem de `date` e depois de `id`. A resposta tem o mesmo formato paginado das outras listas (`next`, `previous`, `results`).
+
+| Parâmetro | Tipo | Descrição |
+|---|---|---|
+| `professional_id` | `integer` | Só os bloqueios desse profissional. |
+| `start_date` | `date` | Só bloqueios com `date` a partir deste dia (inclusivo). |
+| `end_date` | `date` | Só bloqueios com `date` até este dia (inclusivo). |
+| `cursor` | `string` | Cursor de paginação: use o valor devolvido em `next`. |
+| `page_size` | `integer` | Itens por página. Padrão **50**, máximo **100**. |
+
+Todos os filtros são opcionais. Sem `start_date`, a lista inclui bloqueios de dias passados.
+
+## Buscar um bloqueio
+
+```bash
+curl -H "Authorization: Bearer bd_live_xxxxxxxx.yyyy" \
+  "https://api.bydoctor.com.br/api/public/v1/calendar-blocks/88"
+```
+
+A rota de detalhe devolve também um bloqueio desativado, com `active: false`. Assim, quem guardou o `id` consegue ver que o bloqueio não vale mais.
+
+Um `id` inexistente ou de outra clínica responde `404 Not Found` com `{"detail": "No calendar block with this id in your clinic."}`.
+
+## Criar um bloqueio
+
+Requer o escopo `calendar_blocks:write`. Responde `201 Created` com o objeto bloqueio.
+
+```bash
+curl -X POST \
+  -H "Authorization: Bearer bd_live_xxxxxxxx.yyyy" \
+  -H "Content-Type: application/json" \
+  -H "Idempotency-Key: 2f6c1e9a-8b47-4d0e-a3c5-9e1b7f2d6a40" \
+  -d '{
+    "professional_id": 12,
+    "type": "time_range",
+    "date": "2026-11-27",
+    "start_time": "13:00",
+    "end_time": "18:00",
+    "reason": "Congresso"
+  }' \
+  "https://api.bydoctor.com.br/api/public/v1/calendar-blocks"
+```
+
+| Campo | Tipo | Obrigatório | Descrição |
+|---|---|---|---|
+| `professional_id` | `integer` | sim | `id` de um profissional ativo da clínica que atende pacientes. |
+| `type` | `string` | sim | `full_day` ou `time_range`. |
+| `date` | `date` | sim | Dia do bloqueio, `YYYY-MM-DD`. Aceito de hoje até dois anos à frente. |
+| `start_time` | `time` | em `time_range` | Início do intervalo, `HH:MM`. Precisa ser antes de `end_time`. |
+| `end_time` | `time` | em `time_range` | Fim do intervalo, `HH:MM`. |
+| `reason` | `string` | não | Motivo, até 500 caracteres. |
+
+Num bloqueio `full_day`, `start_time` e `end_time` são ignorados e voltam `null`.
+
+O cabeçalho `Idempotency-Key` funciona como na [criação de agendamentos](/agendamentos#idempotency-key): repetir a mesma requisição com a mesma chave em até 24 horas devolve o bloqueio já criado, com `Idempotent-Replayed: true`.
+
+### Um bloqueio não mexe nos agendamentos existentes
+
+A API aceita um bloqueio sobre um período que já tem agendamentos, como o aplicativo. Esses agendamentos **ficam como estão**: o bloqueio não os cancela nem os remarca. Ele só impede novos agendamentos.
+
+Antes de bloquear, liste os agendamentos do profissional naquele dia e decida o que fazer com cada um:
+
+```bash
+curl -H "Authorization: Bearer bd_live_xxxxxxxx.yyyy" \
+  "https://api.bydoctor.com.br/api/public/v1/appointments?professional_id=12&start_date=2026-11-27&end_date=2026-11-27&order=start_at"
+```
+
+### Bloqueios recorrentes
+
+A API não cria bloqueios recorrentes. Para bloquear vários dias, faça um `POST` por dia, em loop, cada um com a sua `Idempotency-Key`.
+
+## Alterar um bloqueio
+
+Requer o escopo `calendar_blocks:write`. Envie **apenas os campos que mudam**. Responde `200 OK` com o objeto atualizado.
+
+```bash
+curl -X PATCH \
+  -H "Authorization: Bearer bd_live_xxxxxxxx.yyyy" \
+  -H "Content-Type: application/json" \
+  -d '{ "end_time": "17:00", "reason": null }' \
+  "https://api.bydoctor.com.br/api/public/v1/calendar-blocks/88"
+```
+
+| Campo | Tipo | Descrição |
+|---|---|---|
+| `type` | `string` | `full_day` ou `time_range`. Mudar para `time_range` exige `start_time` e `end_time` na mesma requisição. Mudar para `full_day` limpa os dois horários. |
+| `date` | `date` | Novo dia, de hoje até dois anos à frente. |
+| `start_time` | `time` | Novo início, `HH:MM`. `null` é ignorado: o valor atual fica. |
+| `end_time` | `time` | Novo fim, `HH:MM`. `null` é ignorado: o valor atual fica. |
+| `reason` | `string` ou `null` | Novo motivo, até 500 caracteres. `null` limpa o motivo. |
+
+Regras da alteração:
+
+- Num bloqueio `full_day`, `start_time` e `end_time` enviados são ignorados.
+- O profissional do bloqueio não muda pela API. `professional_id` não é um campo do `PATCH`.
+- `active` não é um campo do `PATCH`. Um corpo só com `{"active": true}` responde `400` com `Send at least one field to change.`, como um corpo vazio.
+- Um bloqueio desativado não aceita nenhuma alteração: a API responde `409` com `code: "calendar_block_inactive"`.
+
+```json
+{
+  "code": "calendar_block_inactive",
+  "detail": "This calendar block is deactivated. Reactivate it in the ByDoctor app to change it."
+}
+```
+
+## Desativar um bloqueio
+
+Requer o escopo `calendar_blocks:write`. Não há corpo.
+
+```bash
+curl -X POST \
+  -H "Authorization: Bearer bd_live_xxxxxxxx.yyyy" \
+  "https://api.bydoctor.com.br/api/public/v1/calendar-blocks/88/deactivate"
+```
+
+Responde `200 OK` com o objeto bloqueio, agora com `active: false`. A partir daí o bloqueio:
+
+- deixa de impedir agendamentos e volta a liberar os horários em [`GET /availability`](/disponibilidade);
+- sai de `GET /calendar-blocks`;
+- continua respondendo em `GET /calendar-blocks/{id}`, com `active: false`.
+
+A chamada é **idempotente**: desativar um bloqueio já desativado responde `200` com o mesmo objeto e não gera um novo evento de webhook.
+
+A API não reativa bloqueios. Só a clínica reativa um bloqueio, pelo aplicativo. Se você desativou por engano, crie um bloqueio novo.
+
+## Webhooks
+
+Três eventos acompanham os bloqueios, venha a mudança da API ou do aplicativo: `calendar_block.created`, `calendar_block.updated` e `calendar_block.deactivated`. O campo `data` do evento é o objeto bloqueio desta página. Reativar um bloqueio no aplicativo chega como `calendar_block.updated`, com `active: true`. Veja [Webhooks](/webhooks#tipos-de-evento).
+
+## Erros
+
+| Código | Quando acontece |
+|---|---|
+| `400 Bad Request` | Filtro ou corpo inválido, com o erro por campo: `{"campo": ["mensagem"]}`. Veja as mensagens abaixo. |
+| `401 Unauthorized` | Chave ausente, revogada ou expirada. |
+| `403 Forbidden` | Chave sem o escopo da rota: `appointments:read` para leitura, `calendar_blocks:write` para escrita. A mensagem nomeia o escopo que falta. |
+| `404 Not Found` | `id` inexistente ou de outra clínica: `{"detail": "No calendar block with this id in your clinic."}`. |
+| `409 Conflict` | `code: "calendar_block_inactive"`: o bloqueio está desativado e não aceita alteração. |
+| `422 Unprocessable Entity` | `Idempotency-Key` reutilizada com outro corpo ou em outro endpoint (`code: "idempotency_key_reused"`). |
+| `429 Too Many Requests` | Limite de requisições excedido. As escritas têm um limite próprio; veja [Autenticação](/autenticacao#limites-de-uso-rate-limits). |
+
+### Mensagens de validação
+
+| Campo | Mensagem | Como resolver |
+|---|---|---|
+| `professional_id` | `No active professional with this id in your clinic. List them with GET /professionals.` | Veja [Profissionais](/profissionais). |
+| `type` | `This field is required. Use one of: full_day, time_range.` | Obrigatório na criação. |
+| `type` | `"X" is not a valid choice. Use one of: full_day, time_range.` | Só esses dois valores existem. |
+| `date` | `date must be between AAAA-MM-DD and AAAA-MM-DD (today to two years ahead).` | A mensagem traz as datas-limite do dia. |
+| `start_time` | `start_time and end_time are required for time_range blocks.` | Envie os dois horários em um bloqueio `time_range`. |
+| `start_time` | `start_time must be before end_time.` | Corrija a ordem dos horários. |
+| `non_field_errors` | `Send at least one field to change.` | `PATCH` com corpo vazio, ou só com campos que o `PATCH` não aceita. |
